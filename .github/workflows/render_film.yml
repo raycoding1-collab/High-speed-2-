@@ -1,0 +1,239 @@
+name: Render Final Film (20 Parallel Jobs + Periodic Chunk Upload)
+
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: "Cycles samples (e.g. 48)"
+        required: false
+        default: "48"
+      width:
+        description: "Frame width"
+        required: false
+        default: "1920"
+      height:
+        description: "Frame height"
+        required: false
+        default: "1080"
+      frame_start:
+        description: "Start frame (default 1)"
+        required: false
+        default: "1"
+      frame_end:
+        description: "End frame (default 1800)"
+        required: false
+        default: "1800"
+      run_encode:
+        description: "Run final merge & encode job (set false for multi-batch intermediate runs)"
+        required: false
+        default: "true"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build_scene:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+          cache: "pip"
+      - name: Install system libs
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libgl1 libxi6 libxrender1 libxkbcommon0 libsm6 libxfixes3 libgomp1
+      - name: Install pinned Python dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Build packed film.blend & synthesize EBU R128 soundtrack
+        run: |
+          python src/scenes/build_film.py --out build/film.blend --samples ${{ inputs.samples }}
+          python src/audio/synth_soundtrack.py
+      - name: Upload scene & soundtrack artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: film-scene-and-audio
+          path: |
+            build/film.blend
+            build/soundtrack.wav
+            build/scene_build_summary.json
+            docs/physics_log.csv
+            docs/loudness_report.json
+          retention-days: 30
+
+  render_interleaved:
+    needs: build_scene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    fail-fast: false
+    strategy:
+      max-parallel: 20
+      matrix:
+        job_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+          cache: "pip"
+      - name: Install system libs
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libxi6 libxrender1 libxkbcommon0 libsm6 libxfixes3 libgomp1
+      - name: Install pinned Python dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Download packed film.blend
+        uses: actions/download-artifact@v4
+        with:
+          name: film-scene-and-audio
+          path: build
+
+      # Periodic 10-frame chunk rendering + upload so vanished runners NEVER lose completed work!
+      - name: Render chunk 0 (frames 0..9 of this job)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c0 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 0 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 0
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c0
+          path: out_c0/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 1 (frames 10..19)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c1 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 1 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 1
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c1
+          path: out_c1/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 2 (frames 20..29)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c2 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 2 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 2
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c2
+          path: out_c2/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 3 (frames 30..39)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c3 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 3 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 3
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c3
+          path: out_c3/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 4 (frames 40..49)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c4 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 4 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 4
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c4
+          path: out_c4/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 5 (frames 50..59)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c5 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 5 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 5
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c5
+          path: out_c5/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 6 (frames 60..69)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c6 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 6 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 6
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c6
+          path: out_c6/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 7 (frames 70..79)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c7 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 7 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 7
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c7
+          path: out_c7/frame_*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Render chunk 8 (frames 80..89)
+        run: python src/pipeline/render_worker.py --blend build/film.blend --out-dir out_c8 --job-index ${{ matrix.job_index }} --total-jobs 20 --frame-start ${{ inputs.frame_start }} --frame-end ${{ inputs.frame_end }} --chunk-index 8 --chunk-size 10 --width ${{ inputs.width }} --height ${{ inputs.height }} --samples ${{ inputs.samples }} --timing-log timing_j${{ matrix.job_index }}.jsonl
+      - name: Upload chunk 8 & timing log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-j${{ matrix.job_index }}-c8
+          path: |
+            out_c8/frame_*.png
+            timing_j${{ matrix.job_index }}.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
+  merge_and_encode:
+    needs: render_interleaved
+    if: always() && inputs.run_encode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+          cache: "pip"
+      - name: Install ffmpeg & pillow
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && pip install pillow==11.1.0
+      - name: Download scene/audio & all frame chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded_artifacts
+      - name: Safe merge, strict completeness validation & multi-target encode
+        run: |
+          python src/pipeline/encode_deliverables.py \
+            --src-dirs downloaded_artifacts \
+            --merged-dir merged_frames \
+            --audio downloaded_artifacts/film-scene-and-audio/soundtrack.wav \
+            --out-dir deliverables \
+            --report docs/ffprobe_report.json \
+            --width ${{ inputs.width }} --height ${{ inputs.height }}
+      - name: Upload final deliverables artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-film-deliverables
+          path: |
+            deliverables/film_1080p.mp4
+            deliverables/film_instagram.mp4
+            deliverables/film_youtube_4k.mp4
+            deliverables/thumb_*.jpg
+            docs/ffprobe_report.json
+          retention-days: 30
+      - name: Commit 1080p MP4 (if <100 MB), Instagram MP4, thumbnails & ffprobe report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p deliveries
+          cp deliverables/film_instagram.mp4 deliverables/thumb_*.jpg deliveries/
+          if [ $(stat -c%s deliverables/film_1080p.mp4) -lt 98000000 ]; then
+            cp deliverables/film_1080p.mp4 deliveries/
+          fi
+          git add deliveries/ docs/ffprobe_report.json
+          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git push)

@@ -1,0 +1,84 @@
+{
+  "license": "CC0 1.0 Universal",
+  "source": "https://polyhaven.com",
+  "textures": {
+    "concrete": {
+      "asset_id": "brushed_concrete_03",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "cliff": {
+      "asset_id": "aerial_rocks_02",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "forest_floor": {
+      "asset_id": "forest_leaves_03",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "valley_grass": {
+      "asset_id": "aerial_grass_rock",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "asphalt": {
+      "asset_id": "asphalt_02",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "kawara_roof": {
+      "asset_id": "grey_roof_tiles_02",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "cedar_wood": {
+      "asset_id": "dark_wooden_planks",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    },
+    "bark": {
+      "asset_id": "chinese_cedar_bark",
+      "maps": [
+        "albedo",
+        "normal",
+        "rough"
+      ]
+    }
+  },
+  "models": {
+    "fir_tree": {
+      "asset_id": "fir_tree_01",
+      "file": "fir_tree_01.blend"
+    },
+    "pine_tree": {
+      "asset_id": "pine_tree_01",
+      "file": "pine_tree_01.blend"
+    },
+    "boulder": {
+      "asset_id": "boulder_01",
+      "file": "boulder_01.blend"
+    }
+  }
+}

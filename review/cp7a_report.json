@@ -1,0 +1,57 @@
+{
+  "sun_hdri_alignment": {
+    "hdri_file": "kloppenheim_06_puresky_4k.exr",
+    "hdri_native_az_deg": 319.7,
+    "hdri_native_el_deg": 4.61,
+    "hdri_peak_lum": 46.55,
+    "applied_z_rot_deg": 81.7,
+    "target_sun_az_deg": 238.0,
+    "effective_sun_el_deg": 15.5,
+    "pano_measured_az_deg": 240.12,
+    "pano_measured_el_deg": 8.44,
+    "sun_hdri_az_error_deg": 2.12
+  },
+  "solve_pnp": {
+    "ref1_L0_950": {
+      "image_size": [
+        1251,
+        704
+      ],
+      "solved_lens_mm_eq36": 90.92,
+      "rms_residual_px": 19.52,
+      "max_residual_px": 29.9,
+      "per_point_px": [
+        15.33,
+        16.84,
+        21.32,
+        14.54,
+        14.33,
+        22.54,
+        12.36,
+        22.01,
+        29.9
+      ],
+      "overlay_artifact": "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/90dafb5a-d9f7-4ccd-b9af-82f620e5f2e6/cp7a_pnp_overlay_ref1_L0_950.jpg"
+    },
+    "ref2_Yamanashi5": {
+      "image_size": [
+        1280,
+        827
+      ],
+      "solved_lens_mm_eq36": 74.1,
+      "rms_residual_px": 11.3,
+      "max_residual_px": 16.02,
+      "per_point_px": [
+        11.62,
+        3.13,
+        10.97,
+        9.82,
+        8.68,
+        12.8,
+        12.78,
+        16.02
+      ],
+      "overlay_artifact": "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/90dafb5a-d9f7-4ccd-b9af-82f620e5f2e6/cp7a_pnp_overlay_ref2_Yamanashi5.jpg"
+    }
+  }
+}

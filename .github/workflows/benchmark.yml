@@ -1,0 +1,89 @@
+name: Cloud Benchmark (1-2 frames per shot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: "Cycles samples for benchmark"
+        required: false
+        default: "48"
+      width:
+        description: "Render width"
+        required: false
+        default: "1920"
+      height:
+        description: "Render height"
+        required: false
+        default: "1080"
+
+jobs:
+  build_and_benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+          cache: "pip"
+      - name: Install system libs
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libgl1 libxi6 libxrender1 libxkbcommon0 libsm6 libxfixes3 libgomp1
+      - name: Install pinned Python dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Build packed master film.blend
+        run: python src/scenes/build_film.py --out build/film.blend --samples ${{ inputs.samples }}
+      - name: Upload scene artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-scene
+          path: |
+            build/film.blend
+            build/scene_build_summary.json
+          retention-days: 7
+      - name: Benchmark 2 representative frames per shot (20 frames total)
+        run: |
+          python src/pipeline/render_worker.py \
+            --blend build/film.blend \
+            --out-dir build/bench_frames \
+            --frames 80 120 265 290 450 490 650 680 820 850 990 1030 1190 1230 1370 1400 1530 1570 1700 1740 \
+            --width ${{ inputs.width }} --height ${{ inputs.height }} \
+            --samples ${{ inputs.samples }} \
+            --timing-log build/bench_timing.jsonl
+      - name: Summarize cloud render time & runner-hours
+        run: |
+          python - <<'EOF'
+          import json, collections
+          by_shot = collections.defaultdict(list)
+          with open("build/bench_timing.jsonl") as f:
+              for line in f:
+                  r = json.loads(line)
+                  by_shot[r["shot_id"]].append(r["sec"])
+          import sys; sys.path.insert(0, "src"); import specs
+          summary = {"shots": {}, "total_runner_hours": 0.0}
+          tot_sec = 0.0
+          for s in specs.SHOTS:
+              times = by_shot.get(s.shot_id, [])
+              avg = sum(times) / len(times) if times else 0.0
+              shot_tot_h = avg * s.num_frames / 3600.0
+              tot_sec += avg * s.num_frames
+              summary["shots"][s.shot_id] = {
+                  "frames": s.num_frames,
+                  "measured_sec_per_frame": [round(x, 2) for x in times],
+                  "avg_sec_per_frame": round(avg, 2),
+                  "shot_runner_hours": round(shot_tot_h, 2),
+              }
+          summary["total_runner_hours"] = round(tot_sec / 3600.0, 2)
+          summary["est_wall_hours_20_jobs"] = round((tot_sec / 3600.0) / 20.0, 2)
+          with open("build/benchmark_report.json", "w") as f:
+              json.dump(summary, f, indent=2)
+          print(json.dumps(summary, indent=2))
+          EOF
+      - name: Upload benchmark report & frames
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            build/benchmark_report.json
+            build/bench_timing.jsonl
+            build/bench_frames/*.png
+          retention-days: 14

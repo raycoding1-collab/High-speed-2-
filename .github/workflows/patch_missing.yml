@@ -1,0 +1,167 @@
+name: Patch Missing Frames (Resume from Original Run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      original_run_id:
+        description: "GitHub Actions Run ID of the original render_film run"
+        required: true
+      samples:
+        description: "Cycles samples matching original run"
+        required: false
+        default: "48"
+      width:
+        description: "Frame width"
+        required: false
+        default: "1920"
+      height:
+        description: "Frame height"
+        required: false
+        default: "1080"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  detect_missing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      missing_count: ${{ steps.scan.outputs.missing_count }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+      - run: pip install pillow==11.1.0
+      - name: Download all artifacts from original run(s)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p orig_artifacts
+          for rid in ${{ inputs.original_run_id }}; do
+            mkdir -p "orig_artifacts/run_${rid}"
+            gh run download "$rid" -D "orig_artifacts/run_${rid}" || true
+          done
+      - name: Scan for missing or corrupt frames
+        id: scan
+        run: |
+          AUDIO_WAV=$(find orig_artifacts -name soundtrack.wav | head -n 1)
+          python src/pipeline/encode_deliverables.py \
+            --src-dirs orig_artifacts \
+            --merged-dir merged_existing \
+            --audio "$AUDIO_WAV" \
+            --out-dir patch_meta \
+            --width ${{ inputs.width }} --height ${{ inputs.height }} \
+            --check-only
+          cnt=$(python -c 'import json; print(len(json.load(open("patch_meta/missing_frames.json"))))')
+          echo "missing_count=$cnt" >> "$GITHUB_OUTPUT"
+      - name: Upload missing_frames.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-missing-list
+          path: patch_meta/missing_frames.json
+
+  render_patch:
+    needs: detect_missing
+    if: needs.detect_missing.outputs.missing_count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      max-parallel: 10
+      matrix:
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+          cache: "pip"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libxi6 libxrender1 libxkbcommon0 libsm6 libxfixes3 libgomp1
+      - run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: patch-missing-list
+          path: patch_meta
+      - name: Download original scene artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FIRST_RID=$(echo "${{ inputs.original_run_id }}" | awk '{print $1}')
+          gh run download "$FIRST_RID" -n film-scene-and-audio -D build
+      - name: Render assigned slice of missing frames
+        run: |
+          python - <<'EOF'
+          import json
+          miss = json.load(open("patch_meta/missing_frames.json"))
+          mine = [f for i, f in enumerate(miss) if i % 10 == ${{ matrix.worker }}]
+          json.dump(mine, open("my_frames.json", "w"))
+          print(f"Worker ${{ matrix.worker }} rendering {len(mine)} missing frames")
+          EOF
+          python src/pipeline/render_worker.py \
+            --blend build/film.blend \
+            --out-dir patched_frames \
+            --frames-file my_frames.json \
+            --width ${{ inputs.width }} --height ${{ inputs.height }} \
+            --samples ${{ inputs.samples }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: patched-w${{ matrix.worker }}
+          path: patched_frames/frame_*.png
+          if-no-files-found: ignore
+
+  final_merge_and_encode:
+    needs: [detect_missing, render_patch]
+    if: always() && (needs.detect_missing.result == 'success') && (needs.render_patch.result == 'success' || needs.render_patch.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.11"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && pip install pillow==11.1.0
+      - name: Download original & patched artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p all_sources/orig all_sources/patch
+          for rid in ${{ inputs.original_run_id }}; do
+            mkdir -p "all_sources/orig/run_${rid}"
+            gh run download "$rid" -D "all_sources/orig/run_${rid}" || true
+          done
+      - uses: actions/download-artifact@v4
+        with:
+          path: all_sources/patch
+      - name: Safe merge, verify all 1800 frames & encode deliverables
+        run: |
+          AUDIO_WAV=$(find all_sources/orig -name soundtrack.wav | head -n 1)
+          python src/pipeline/encode_deliverables.py \
+            --src-dirs all_sources/orig all_sources/patch \
+            --merged-dir merged_frames \
+            --audio "$AUDIO_WAV" \
+            --out-dir deliverables \
+            --report docs/ffprobe_report.json \
+            --width ${{ inputs.width }} --height ${{ inputs.height }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-film-deliverables
+          path: |
+            deliverables/film_1080p.mp4
+            deliverables/film_instagram.mp4
+            deliverables/film_youtube_4k.mp4
+            deliverables/thumb_*.jpg
+            docs/ffprobe_report.json
+          retention-days: 30
+      - name: Commit 1080p MP4 (if <100 MB), Instagram MP4, thumbnails & ffprobe report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p deliveries
+          cp deliverables/film_instagram.mp4 deliverables/thumb_*.jpg deliveries/
+          if [ $(stat -c%s deliverables/film_1080p.mp4) -lt 98000000 ]; then
+            cp deliverables/film_1080p.mp4 deliveries/
+          fi
+          git add deliveries/ docs/ffprobe_report.json
+          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git push)

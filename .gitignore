@@ -1,0 +1,9 @@
+# Large cached DEMs, raw HDRIs, temporary renders, and local venvs
+assets_cache/
+build/
+renders/
+__pycache__/
+*.pyc
+.venv/
+*.blend1
+scratch/
