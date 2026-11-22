@@ -50,6 +50,7 @@ jobs:
         run: |
           python src/scenes/build_film.py --out build/film.blend --samples ${{ inputs.samples }}
           python src/audio/synth_soundtrack.py
+          cp docs/physics_log.csv docs/loudness_report.json build/
       - name: Upload scene & soundtrack artifact
         uses: actions/upload-artifact@v4
         with:
@@ -58,8 +59,8 @@ jobs:
             build/film.blend
             build/soundtrack.wav
             build/scene_build_summary.json
-            docs/physics_log.csv
-            docs/loudness_report.json
+            build/physics_log.csv
+            build/loudness_report.json
           retention-days: 30
 
   render_interleaved:
@@ -208,10 +209,11 @@ jobs:
           path: downloaded_artifacts
       - name: Safe merge, strict completeness validation & multi-target encode
         run: |
+          AUDIO_WAV=$(find downloaded_artifacts -name soundtrack.wav | head -n 1)
           python src/pipeline/encode_deliverables.py \
             --src-dirs downloaded_artifacts \
             --merged-dir merged_frames \
-            --audio downloaded_artifacts/film-scene-and-audio/soundtrack.wav \
+            --audio "$AUDIO_WAV" \
             --out-dir deliverables \
             --report docs/ffprobe_report.json \
             --width ${{ inputs.width }} --height ${{ inputs.height }}
@@ -236,4 +238,4 @@ jobs:
             cp deliverables/film_1080p.mp4 deliveries/
           fi
           git add deliveries/ docs/ffprobe_report.json
-          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git push)
+          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git pull --rebase origin main && git push)

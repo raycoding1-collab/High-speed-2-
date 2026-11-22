@@ -59,21 +59,36 @@ def _gable_roof(bm, width_x, depth_y, z_eave, ridge_h, overhang=0.75, mat_roof=1
 
 
 def build_building_library() -> dict:
-    # Real photogrammetry CC0 Poly Haven PBR architectural materials!
+    # Real photogrammetry CC0 Poly Haven PBR architectural materials with per-instance color/tone variety!
     mat_plaster = make_box_pbr_material(
         "JP_Wall_Plaster_PBR", "concrete", tile_scale=0.35,
         tint_rgb=(0.98, 0.94, 0.85), tint_fac=0.55, normal_strength=0.55,
-        rough_mult=1.15, ao_darkening=0.55, ao_dist=1.4, macro_var=0.16
+        rough_mult=1.15, ao_darkening=0.55, ao_dist=1.4, macro_var=0.16, obj_var=0.18
+    )
+    mat_stucco_w = make_box_pbr_material(
+        "JP_Wall_WhiteKura_PBR", "concrete", tile_scale=0.38,
+        tint_rgb=(0.94, 0.93, 0.90), tint_fac=0.45, normal_strength=0.45,
+        rough_mult=1.12, ao_darkening=0.50, ao_dist=1.4, macro_var=0.14, obj_var=0.12
     )
     mat_cedar = make_box_pbr_material(
         "JP_Wall_Cedar_PBR", "cedar_wood", tile_scale=0.55,
         tint_rgb=(0.55, 0.44, 0.36), tint_fac=0.45, normal_strength=0.95,
-        rough_mult=1.05, ao_darkening=0.50, ao_dist=1.2, macro_var=0.18
+        rough_mult=1.05, ao_darkening=0.50, ao_dist=1.2, macro_var=0.18, obj_var=0.22
     )
     mat_kawara = make_box_pbr_material(
         "JP_Roof_Kawara_PBR", "kawara_roof", tile_scale=0.65,
         tint_rgb=(0.35, 0.38, 0.44), tint_fac=0.65, normal_strength=1.2,
-        rough_mult=0.72, ao_darkening=0.45, ao_dist=0.9, metallic=0.08, macro_var=0.14
+        rough_mult=0.72, ao_darkening=0.45, ao_dist=0.9, metallic=0.08, macro_var=0.14, obj_var=0.22
+    )
+    mat_kawara_russet = make_box_pbr_material(
+        "JP_Roof_Russet_PBR", "kawara_roof", tile_scale=0.65,
+        tint_rgb=(0.54, 0.34, 0.24), tint_fac=0.70, normal_strength=1.15,
+        rough_mult=0.78, ao_darkening=0.45, ao_dist=0.9, metallic=0.06, macro_var=0.16, obj_var=0.20
+    )
+    mat_kawara_dark = make_box_pbr_material(
+        "JP_Roof_Charcoal_PBR", "kawara_roof", tile_scale=0.65,
+        tint_rgb=(0.22, 0.24, 0.27), tint_fac=0.72, normal_strength=1.2,
+        rough_mult=0.68, ao_darkening=0.45, ao_dist=0.9, metallic=0.12, macro_var=0.14, obj_var=0.18
     )
     mat_ridge = make_box_pbr_material(
         "JP_Roof_Ridge_PBR", "concrete", tile_scale=0.5,
@@ -96,27 +111,34 @@ def build_building_library() -> dict:
 
     lib = {}
 
-    # 1. Authentic Japanese Rural Houses (3 detailed variants with timber posts, eaves, mullions, kawara roofs)
-    for vi, (wx, dy, h1, h2, roof_h, wall_m) in enumerate([
-        (10.5, 7.6, 3.0, 2.7, 2.35, mat_plaster),
-        (9.4, 6.8, 3.1, 0.0, 2.20, mat_cedar),
-        (11.6, 8.2, 3.0, 2.6, 2.45, mat_plaster),
-    ]):
+    # 1. Six Distinct Rural Japanese Building Architectures (zero cookie-cutter repetition!)
+    # (wx, dy, h1, h2, roof_h, wall_m, roof_m, has_l_wing)
+    house_specs = [
+        (10.5, 7.6, 3.0, 2.7, 2.35, mat_plaster,  mat_kawara,        False),  # 0: Classic 2F Nagano farmhouse
+        (9.4,  6.8, 3.1, 0.0, 2.20, mat_cedar,    mat_kawara_dark,   False),  # 1: 1F charred-cedar bungalow
+        (11.8, 8.0, 3.0, 2.5, 2.45, mat_plaster,  mat_kawara_russet, True),   # 2: Large L-wing orchard farmhouse
+        (7.2,  5.6, 4.8, 0.0, 2.10, mat_stucco_w, mat_kawara_dark,   False),  # 3: Traditional white kura storehouse
+        (13.2, 6.2, 3.6, 0.0, 2.15, mat_cedar,    mat_kawara_russet, False),  # 4: Wide timber agricultural barn
+        (8.4,  7.8, 2.9, 2.8, 2.05, mat_stucco_w, mat_kawara,        True),   # 5: Compact 2F L-shaped residence
+    ]
+    for vi, (wx, dy, h1, h2, roof_h, wall_m, roof_m, has_wing) in enumerate(house_specs):
         bm = bmesh.new()
         _box(bm, (0.0, 0.0, -1.2), (wx + 0.25, dy + 0.25, 3.2), mat_idx=3)
         _box(bm, (0.0, 0.0, 0.4 + h1 * 0.5), (wx, dy, h1), mat_idx=0)
-        # Exposed dark cedar corner columns & timber wainscot band
         for sx in (-wx * 0.5, wx * 0.5):
             for sy in (-dy * 0.5, dy * 0.5):
                 _box(bm, (sx, sy, 0.4 + h1 * 0.5), (0.24, 0.24, h1), mat_idx=5)
-        # Windows with dark timber frame mullions + warm interior glow
         for side in (-1.0, 1.0):
-            for kx in (-wx * 0.28, 0.0, wx * 0.28):
-                _box(bm, (kx, side * (dy * 0.5 + 0.04), 0.4 + h1 * 0.52), (1.55, 0.08, 1.38), mat_idx=5)
-                _box(bm, (kx, side * (dy * 0.5 + 0.06), 0.4 + h1 * 0.52), (1.38, 0.06, 1.22), mat_idx=4)
-                _box(bm, (kx, side * (dy * 0.5 + 0.08), 0.4 + h1 * 0.52), (0.06, 0.06, 1.24), mat_idx=5)
+            win_xs = (-wx * 0.28, 0.0, wx * 0.28) if wx > 9.0 else (-wx * 0.22, wx * 0.22)
+            for kx in win_xs:
+                _box(bm, (kx, side * (dy * 0.5 + 0.04), 0.4 + h1 * 0.52), (1.50, 0.08, 1.32), mat_idx=5)
+                _box(bm, (kx, side * (dy * 0.5 + 0.06), 0.4 + h1 * 0.52), (1.32, 0.06, 1.16), mat_idx=4)
+                _box(bm, (kx, side * (dy * 0.5 + 0.08), 0.4 + h1 * 0.52), (0.06, 0.06, 1.18), mat_idx=5)
+        if has_wing:
+            # Attached 1F side engawa / annex wing breaking up rectangular silhouette
+            _box(bm, (wx * 0.36, -dy * 0.62, 0.4 + 1.4), (wx * 0.48, dy * 0.52, 2.8), mat_idx=5)
+            _box(bm, (wx * 0.36, -dy * 0.62, 0.4 + 2.95), (wx * 0.54, dy * 0.62, 0.28), mat_idx=1, rot_eul=(0.22, 0.0, 0.0))
         if h2 > 0.1:
-            # Ground-floor tiled skirt eave (hisashi)
             _box(bm, (0.0, 0.0, 0.4 + h1), (wx + 1.25, dy + 1.25, 0.20), mat_idx=1)
             _box(bm, (0.0, 0.0, 0.4 + h1 + h2 * 0.5), (wx * 0.88, dy * 0.88, h2), mat_idx=0)
             for side in (-1.0, 1.0):
@@ -130,7 +152,7 @@ def build_building_library() -> dict:
         m = bpy.data.meshes.new(f"JP_House_{vi}")
         bm.to_mesh(m)
         bm.free()
-        for _m in [wall_m, mat_kawara, mat_ridge, mat_found, mat_win, mat_cedar]:
+        for _m in [wall_m, roof_m, mat_ridge, mat_found, mat_win, mat_cedar]:
             m.materials.append(_m)
         lib[f"house_{vi}"] = m
 

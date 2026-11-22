@@ -260,15 +260,20 @@ def _optimize_polyhaven_materials(mesh: bpy.types.Mesh):
 
                 t_diff = nt.nodes.new("ShaderNodeTexImage")
                 t_diff.image = diff_img
-                # Slight organic per-tree brightness variation via Object Info Random
+                # Organic per-tree hue, saturation & value variation so NO two conifers ever look identical!
                 oi = nt.nodes.new("ShaderNodeObjectInfo")
-                mr = nt.nodes.new("ShaderNodeMapRange")
-                mr.inputs["To Min"].default_value = 0.80
-                mr.inputs["To Max"].default_value = 1.22
+                mr_v = nt.nodes.new("ShaderNodeMapRange")
+                mr_v.inputs["To Min"].default_value = 0.72
+                mr_v.inputs["To Max"].default_value = 1.28
+                mr_h = nt.nodes.new("ShaderNodeMapRange")
+                mr_h.inputs["To Min"].default_value = 0.478
+                mr_h.inputs["To Max"].default_value = 0.522
                 hsv = nt.nodes.new("ShaderNodeHueSaturation")
-                hsv.inputs["Saturation"].default_value = 1.05
-                nt.links.new(oi.outputs["Random"], mr.inputs["Value"])
-                nt.links.new(mr.outputs["Result"], hsv.inputs["Value"])
+                hsv.inputs["Saturation"].default_value = 1.02
+                nt.links.new(oi.outputs["Random"], mr_v.inputs["Value"])
+                nt.links.new(oi.outputs["Random"], mr_h.inputs["Value"])
+                nt.links.new(mr_v.outputs["Result"], hsv.inputs["Value"])
+                nt.links.new(mr_h.outputs["Result"], hsv.inputs["Hue"])
                 nt.links.new(t_diff.outputs["Color"], hsv.inputs["Color"])
                 nt.links.new(hsv.outputs["Color"], bsdf.inputs["Base Color"])
 
@@ -363,18 +368,22 @@ def build_vegetation_library() -> dict:
 
     mat_kaki_fruit = _make_simple_mat("Fruit_Persimmon", (0.64, 0.18, 0.015), 0.35)
     mat_rice = _make_simple_mat("Rice_Stubble_Autumn", (0.30, 0.22, 0.09), 0.86)
-    mat_vine = _make_card_foliage_mat("Card_Vineyard_Autumn", tex["maple_gold"], rough=0.68, transl=0.22, var_amt=0.22)
+    mat_vine_gold = _make_card_foliage_mat("Card_Vineyard_Gold", tex["maple_gold"], rough=0.72, transl=0.18, var_amt=0.28)
+    mat_vine_olive = _make_card_foliage_mat("Card_Vineyard_Olive", tex["bamboo"], rough=0.72, transl=0.18, var_amt=0.28)
+    mat_vine_russet = _make_card_foliage_mat("Card_Vineyard_Russet", tex["maple_orange"], rough=0.72, transl=0.18, var_amt=0.28)
 
     lib = {}
 
-    # 1. REAL PHOTOGRAMMETRY CONIFERS & GRANITE BOULDERS (single-load shared textures + fast optimized twig shaders!)
+    # 1. ALL 6 REAL PHOTOGRAMMETRY CONIFERS (fir_tree_01 a/b/c + pine_tree_01 a/b/c) & GRANITE BOULDER!
     firs = _append_polyhaven_batch(ph_models.get("fir_tree"), [
         ("fir_tree_01_a_LOD2", "PH_Sugi_Tall", 22.0, 0.3),
         ("fir_tree_01_b_LOD2", "PH_Sugi_Med", 18.5, 0.3),
         ("fir_tree_01_c_LOD2", "PH_Hinoki_Cypress", 16.5, 0.3),
     ])
     pines = _append_polyhaven_batch(ph_models.get("pine_tree"), [
-        ("pine_tree_01_b_LOD2", "PH_Akamatsu_Pine", 15.5, 0.3),
+        ("pine_tree_01_a_LOD2", "PH_Akamatsu_Tall", 20.5, 0.3),
+        ("pine_tree_01_b_LOD2", "PH_Akamatsu_Med", 15.5, 0.3),
+        ("pine_tree_01_c_LOD2", "PH_Akamatsu_Wide", 17.5, 0.3),
     ])
     boulders = _append_polyhaven_batch(ph_models.get("boulder"), [
         ("boulder_01_LOD3", "PH_Granite_Boulder", 2.8, 0.5),
@@ -402,26 +411,33 @@ def build_vegetation_library() -> dict:
             lib[f"sugi_{vi}"] = m
         lib["hinoki_0"] = lib["sugi_0"]
 
-    lib["pine_0"] = pines.get("PH_Akamatsu_Pine", lib["sugi_1"])
+    lib["pine_0"] = pines.get("PH_Akamatsu_Med", lib["sugi_1"])
+    lib["pine_1"] = pines.get("PH_Akamatsu_Tall", lib["pine_0"])
+    lib["pine_2"] = pines.get("PH_Akamatsu_Wide", lib["pine_0"])
     if "PH_Granite_Boulder" in boulders:
         lib["boulder_0"] = boulders["PH_Granite_Boulder"]
 
-    # 4. MOMIJI (Lush multi-branch Japanese Autumn Maples in crimson, burnt orange, gold — dense, zero ray overflow!)
-    for tag, leaf_mat, seed in [
-        ("maple_red", mat_maple_red, 401),
-        ("maple_orange", mat_maple_org, 402),
-        ("maple_gold", mat_maple_gld, 403),
+    # 4. MOMIJI (6 distinct branching Japanese Autumn Maple silhouettes: 2 unique shapes per color!)
+    for tag, leaf_mat, seed, h_scale, lean_x, n_br in [
+        ("maple_red",      mat_maple_red, 401, 1.00,  0.15, 6),
+        ("maple_red_1",    mat_maple_red, 411, 1.22, -0.55, 7),
+        ("maple_orange",   mat_maple_org, 402, 0.95, -0.25, 6),
+        ("maple_orange_1", mat_maple_org, 412, 1.18,  0.60, 5),
+        ("maple_gold",     mat_maple_gld, 403, 1.05,  0.35, 6),
+        ("maple_gold_1",   mat_maple_gld, 413, 0.86, -0.45, 5),
     ]:
         rng = random.Random(seed)
         bm = bmesh.new()
         uv = bm.loops.layers.uv.new("UVMap")
-        _add_trunk(bm, Vector((0, 0, -0.5)), Vector((0, 0, 3.0)), 0.28, 0.16, segs=7, mat_idx=0)
-        for b in range(6):
-            ang = 2.0 * math.pi * b / 6.0 + rng.uniform(-0.25, 0.25)
-            tip = Vector((math.cos(ang) * rng.uniform(2.8, 4.4), math.sin(ang) * rng.uniform(2.8, 4.4), rng.uniform(5.6, 8.4)))
-            _add_trunk(bm, Vector((0, 0, 2.6)), tip, 0.12, 0.04, segs=5, mat_idx=0)
-            _add_foliage_cluster_cards(bm, uv, tip, 3.1, 2.2, rng, n_cards=2, mat_idx=1, droop_rad=0.22)
-        _add_foliage_cluster_cards(bm, uv, Vector((0, 0, 8.6)), 3.9, 2.7, rng, n_cards=3, mat_idx=1, droop_rad=0.15)
+        trunk_top = Vector((lean_x * 0.8, rng.uniform(-0.3, 0.3), 3.0 * h_scale))
+        _add_trunk(bm, Vector((0, 0, -0.5)), trunk_top, 0.28 * h_scale, 0.15 * h_scale, segs=7, mat_idx=0)
+        for b in range(n_br):
+            ang = 2.0 * math.pi * b / n_br + rng.uniform(-0.40, 0.40)
+            rad = rng.uniform(2.4, 4.6) * h_scale
+            tip = Vector((trunk_top.x + math.cos(ang) * rad, trunk_top.y + math.sin(ang) * rad, rng.uniform(5.2, 8.8) * h_scale))
+            _add_trunk(bm, trunk_top * 0.85, tip, 0.12 * h_scale, 0.04, segs=5, mat_idx=0)
+            _add_foliage_cluster_cards(bm, uv, tip, rng.uniform(2.5, 3.4) * h_scale, rng.uniform(1.8, 2.5) * h_scale, rng, n_cards=2, mat_idx=1, droop_rad=0.22)
+        _add_foliage_cluster_cards(bm, uv, Vector((trunk_top.x * 1.1, trunk_top.y, 8.5 * h_scale)), 3.6 * h_scale, 2.6 * h_scale, rng, n_cards=3, mat_idx=1, droop_rad=0.15)
         m = bpy.data.meshes.new(f"Tree_{tag}")
         bm.to_mesh(m)
         bm.free()
@@ -472,41 +488,49 @@ def build_vegetation_library() -> dict:
     m.materials.append(mat_kaki_fruit)
     lib["persimmon_0"] = m
 
-    # 7. HARVESTED RICE STUBBLE PATCH (3.2 m x 3.2 m)
-    rng = random.Random(701)
-    bm = bmesh.new()
-    for ix in range(6):
-        for iy in range(6):
-            cx = -1.25 + ix * 0.5 + rng.uniform(-0.06, 0.06)
-            cy = -1.25 + iy * 0.5 + rng.uniform(-0.06, 0.06)
-            for a in (0.0, 1.05, 2.1):
-                h = rng.uniform(0.24, 0.38)
-                mat = (
-                    Matrix.Translation((cx, cy, h * 0.45))
-                    @ Euler((rng.uniform(-0.18, 0.18), rng.uniform(-0.18, 0.18), a)).to_matrix().to_4x4()
-                    @ Matrix.Diagonal((0.16, 0.03, h, 1.0))
-                )
-                bmesh.ops.create_cube(bm, size=1.0, matrix=mat)
-    m = bpy.data.meshes.new("Rice_Stubble_Patch")
-    bm.to_mesh(m)
-    bm.free()
-    m.materials.append(mat_rice)
-    lib["rice_patch"] = m
+    # 7. HARVESTED RICE STUBBLE PATCHES (3 varied organic patterns so paddies never look stamped!)
+    for vi in range(3):
+        rng = random.Random(701 + vi * 17)
+        bm = bmesh.new()
+        for ix in range(6):
+            for iy in range(6):
+                if rng.random() < 0.12:
+                    continue
+                cx = -1.25 + ix * 0.5 + rng.uniform(-0.10, 0.10)
+                cy = -1.25 + iy * 0.5 + rng.uniform(-0.10, 0.10)
+                for a in (0.0, 1.05, 2.1):
+                    h = rng.uniform(0.20, 0.40)
+                    mat = (
+                        Matrix.Translation((cx, cy, h * 0.45))
+                        @ Euler((rng.uniform(-0.24, 0.24), rng.uniform(-0.24, 0.24), a + rng.uniform(-0.3, 0.3))).to_matrix().to_4x4()
+                        @ Matrix.Diagonal((0.16, 0.03, h, 1.0))
+                    )
+                    bmesh.ops.create_cube(bm, size=1.0, matrix=mat)
+        m = bpy.data.meshes.new(f"Rice_Stubble_Patch_{vi}")
+        bm.to_mesh(m)
+        bm.free()
+        m.materials.append(mat_rice)
+        lib["rice_patch" if vi == 0 else f"rice_patch_{vi}"] = m
 
-    # 8. KOFU VINEYARD / ORCHARD TRELLIS ROW (16 m long autumn pergola)
-    rng = random.Random(801)
-    bm = bmesh.new()
-    uv = bm.loops.layers.uv.new("UVMap")
-    for px in (-7.5, -2.5, 2.5, 7.5):
-        _add_trunk(bm, Vector((px, 0, -0.3)), Vector((px, 0, 1.85)), 0.06, 0.05, segs=5, mat_idx=0)
-    for sx in range(-7, 8, 2):
-        _add_foliage_cluster_cards(bm, uv, Vector((sx, 0.0, 1.65)), 1.5, 0.9, rng, n_cards=2, mat_idx=1, droop_rad=0.1)
-    m = bpy.data.meshes.new("Kofu_Vineyard_Row")
-    bm.to_mesh(m)
-    bm.free()
-    m.materials.append(mat_bark_maple)
-    m.materials.append(mat_vine)
-    lib["vineyard_row"] = m
+    # 8. KOFU VINEYARD / ORCHARD TRELLIS ROWS (3 varied lengths & autumn tones — zero repeating yellow dashes!)
+    for vi, (row_half, v_mat, seed) in enumerate([
+        (6.5, mat_vine_olive, 801),
+        (9.5, mat_vine_russet, 802),
+        (7.5, mat_vine_gold, 803),
+    ]):
+        rng = random.Random(seed)
+        bm = bmesh.new()
+        uv = bm.loops.layers.uv.new("UVMap")
+        for px in np.linspace(-row_half, row_half, 4):
+            _add_trunk(bm, Vector((float(px), 0, -0.3)), Vector((float(px), 0, 1.85)), 0.06, 0.05, segs=5, mat_idx=0)
+        for sx in np.arange(-row_half, row_half + 0.5, 2.2):
+            _add_foliage_cluster_cards(bm, uv, Vector((float(sx), rng.uniform(-0.3, 0.3), rng.uniform(1.45, 1.85))), 1.7, 1.0, rng, n_cards=2, mat_idx=1, droop_rad=0.25)
+        m = bpy.data.meshes.new(f"Kofu_Vineyard_Row_{vi}")
+        bm.to_mesh(m)
+        bm.free()
+        m.materials.append(mat_bark_maple)
+        m.materials.append(v_mat)
+        lib["vineyard_row" if vi == 0 else f"vineyard_row_{vi}"] = m
 
     # 9. SINGLE AUTUMN MAPLE LEAF (for slipstream wake whipping)
     bm = bmesh.new()

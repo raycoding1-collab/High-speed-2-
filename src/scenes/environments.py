@@ -384,6 +384,8 @@ def _scatter_instances(
     scale_range: tuple,
     rng: random.Random,
     align_yaw_rad: float = None,
+    non_uniform: bool = True,
+    full_3d_rot: bool = False,
 ) -> int:
     count = 0
     for i, (x, y, z) in enumerate(positions_xyz):
@@ -393,11 +395,18 @@ def _scatter_instances(
         obj = bpy.data.objects.new(f"{prefix}_{i:05d}", mesh)
         obj.location = (x, y, z)
         yaw = align_yaw_rad if align_yaw_rad is not None else rng.uniform(0.0, 2.0 * math.pi)
-        tilt_x = rng.uniform(-0.04, 0.04) if align_yaw_rad is None else 0.0
-        tilt_y = rng.uniform(-0.04, 0.04) if align_yaw_rad is None else 0.0
+        if full_3d_rot:
+            tilt_x = rng.uniform(0.0, 2.0 * math.pi)
+            tilt_y = rng.uniform(0.0, 2.0 * math.pi)
+        else:
+            tilt_x = rng.uniform(-0.07, 0.07) if align_yaw_rad is None else 0.0
+            tilt_y = rng.uniform(-0.07, 0.07) if align_yaw_rad is None else 0.0
         obj.rotation_euler = (tilt_x, tilt_y, yaw)
         sc = rng.uniform(scale_range[0], scale_range[1])
-        obj.scale = (sc, sc, sc * rng.uniform(0.92, 1.15))
+        if non_uniform:
+            obj.scale = (sc * rng.uniform(0.84, 1.18), sc * rng.uniform(0.84, 1.18), sc * rng.uniform(0.82, 1.24))
+        else:
+            obj.scale = (sc, sc, sc * rng.uniform(0.95, 1.08))
         collection.objects.link(obj)
         count += 1
     return count
@@ -444,16 +453,23 @@ def scatter_forest_in_region(
             continue
         pts.append((x, y, z - 0.5))
 
+    # All 6 real photogrammetry conifers + all 6 distinct autumn maple silhouettes!
     conifer_w = 1.0 - maple_ratio
     meshes = [
-        veg_lib["sugi_0"], veg_lib["sugi_1"], veg_lib["hinoki_0"], veg_lib["pine_0"],
-        veg_lib["maple_red"], veg_lib["maple_orange"], veg_lib["maple_gold"],
+        veg_lib["sugi_0"], veg_lib["sugi_1"], veg_lib["hinoki_0"],
+        veg_lib["pine_0"], veg_lib.get("pine_1", veg_lib["pine_0"]), veg_lib.get("pine_2", veg_lib["pine_0"]),
+        veg_lib["maple_red"], veg_lib.get("maple_red_1", veg_lib["maple_red"]),
+        veg_lib["maple_orange"], veg_lib.get("maple_orange_1", veg_lib["maple_orange"]),
+        veg_lib["maple_gold"], veg_lib.get("maple_gold_1", veg_lib["maple_gold"]),
     ]
     weights = [
-        conifer_w * 0.42, conifer_w * 0.30, conifer_w * 0.18, conifer_w * 0.10,
-        maple_ratio * 0.40, maple_ratio * 0.38, maple_ratio * 0.22,
+        conifer_w * 0.24, conifer_w * 0.22, conifer_w * 0.18,
+        conifer_w * 0.13, conifer_w * 0.12, conifer_w * 0.11,
+        maple_ratio * 0.20, maple_ratio * 0.20,
+        maple_ratio * 0.19, maple_ratio * 0.19,
+        maple_ratio * 0.11, maple_ratio * 0.11,
     ]
-    return _scatter_instances(collection, prefix, meshes, weights, pts, (0.95, 1.48), rng)
+    return _scatter_instances(collection, prefix, meshes, weights, pts, (0.82, 1.48), rng, non_uniform=True)
 
 
 def add_slipstream_wake_leaves(
@@ -586,7 +602,7 @@ def build_location_environment(
                         continue
                     bz = _interp_z(XX, YY, Z_rel, bx, by) - 0.5
                     b_pts.append((bx, by, bz))
-            _scatter_instances(col_env, f"Boulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], b_pts, (0.75, 1.65), rng_b)
+            _scatter_instances(col_env, f"Boulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], b_pts, (0.70, 1.80), rng_b, non_uniform=True, full_3d_rot=True)
 
     # -------------------------------------------------------------------------
     # LOCATION 2: Kofu Basin & Snow-Capped Mt Fuji (S03 Hero Aerial + S04 Parallel Car)
@@ -635,28 +651,36 @@ def build_location_environment(
                     continue
                 z = _interp_z(XX, YY, Z_rel, x, y)
                 house_pts.append((x, y, z))
+        all_houses = [bldg_lib[f"house_{k}"] for k in range(6) if f"house_{k}" in bldg_lib]
         stats["buildings"] += _scatter_instances(
             col_bldg, f"House_{loc_id}",
-            [bldg_lib["house_0"], bldg_lib["house_1"], bldg_lib["house_2"]], [0.45, 0.30, 0.25],
-            house_pts, (0.92, 1.15), rng
+            all_houses, [1.0] * len(all_houses),
+            house_pts, (0.88, 1.16), rng, non_uniform=False
         )
         grove_pts = [(hx + rng.uniform(-16, 16), hy + rng.uniform(-16, 16), hz - 0.3) for (hx, hy, hz) in house_pts for _ in range(3)]
         stats["trees"] += _scatter_instances(
             col_veg, f"Grove_{loc_id}",
-            [veg_lib["persimmon_0"], veg_lib["bamboo_0"], veg_lib["maple_red"], veg_lib["maple_orange"], veg_lib["hinoki_0"]],
-            [0.24, 0.22, 0.22, 0.18, 0.14], grove_pts, (0.90, 1.25), rng
+            [veg_lib["persimmon_0"], veg_lib["bamboo_0"], veg_lib["maple_red"], veg_lib.get("maple_red_1", veg_lib["maple_red"]),
+             veg_lib["maple_orange"], veg_lib.get("maple_orange_1", veg_lib["maple_orange"]), veg_lib["hinoki_0"]],
+            [0.18, 0.16, 0.16, 0.14, 0.12, 0.12, 0.12], grove_pts, (0.85, 1.30), rng, non_uniform=True
         )
 
+        # Organic varied-orientation & varied-tone Kofu orchards/vineyards (ZERO repeating yellow grid dashes!)
         vine_pts = []
-        for vx in range(-280, 680, 20):
-            for vy in list(range(35, 310, 10)) + list(range(-130, -50, 10)):
-                if any(math.hypot(vx - hx, vy - hy) < 26 for (hx, hy, _) in house_pts[:25]):
+        for vx in range(-280, 680, 22):
+            for vy in list(range(36, 305, 12)) + list(range(-130, -50, 12)):
+                jx = vx + rng.uniform(-5.5, 5.5)
+                jy = vy + rng.uniform(-3.5, 3.5)
+                if any(math.hypot(jx - hx, jy - hy) < 26 for (hx, hy, _) in house_pts[:25]):
                     continue
-                if rng.random() < 0.65:
-                    z = _interp_z(XX, YY, Z_rel, vx, vy)
-                    vine_pts.append((vx, vy, z))
+                if rng.random() < 0.58:
+                    z = _interp_z(XX, YY, Z_rel, jx, jy)
+                    vine_pts.append((jx, jy, z))
+        vine_meshes = [veg_lib["vineyard_row"], veg_lib.get("vineyard_row_1", veg_lib["vineyard_row"]),
+                       veg_lib.get("vineyard_row_2", veg_lib["vineyard_row"])]
         stats["crops"] += _scatter_instances(
-            col_veg, f"Vine_{loc_id}", [veg_lib["vineyard_row"]], [1.0], vine_pts, (0.95, 1.08), rng, align_yaw_rad=0.0
+            col_veg, f"Vine_{loc_id}", vine_meshes, [0.48, 0.32, 0.20], vine_pts, (0.85, 1.25), rng,
+            align_yaw_rad=None, non_uniform=True
         )
 
         stats["trees"] += scatter_forest_in_region(
@@ -728,7 +752,7 @@ def build_location_environment(
                     bx = cx_riv + side * rng_rb.uniform(34.0, 68.0)
                     bz = _interp_z(XX, YY, Z_rel, bx, float(ry)) - 0.5
                     rb_pts.append((bx, float(ry), max(z_river - 1.0, bz)))
-            _scatter_instances(col_env, f"GorgeBoulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], rb_pts, (1.1, 2.8), rng_rb)
+            _scatter_instances(col_env, f"GorgeBoulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], rb_pts, (0.95, 2.95), rng_rb, non_uniform=True, full_3d_rot=True)
 
         # Dense crimson maples + Japanese red pines + cedars blanketing the granite gorge cliffs (extra dense near viaduct)!
         stats["trees"] += scatter_forest_in_region(
@@ -807,10 +831,11 @@ def build_location_environment(
             (-45, 34), (25, 38), (95, 34), (155, 42),
         ]
         hp_3d = [(x, y, _interp_z(XX, YY, Z_rel, x, y)) for (x, y) in hamlet_pts]
+        all_houses_k = [bldg_lib[f"house_{k}"] for k in range(6) if f"house_{k}" in bldg_lib]
         stats["buildings"] += _scatter_instances(
             col_bldg, f"Hamlet_{loc_id}",
-            [bldg_lib["house_0"], bldg_lib["house_1"], bldg_lib["house_2"]], [0.40, 0.35, 0.25],
-            hp_3d, (0.92, 1.12), rng
+            all_houses_k, [1.0] * len(all_houses_k),
+            hp_3d, (0.90, 1.14), rng, non_uniform=False
         )
         v_trees = [(x + rng.uniform(-11, 11), y + rng.uniform(-9, 9), z - 0.3) for (x, y, z) in hp_3d for _ in range(3)]
         # Strictly keep camera-to-viaduct & camera-to-Torii corridor open!
@@ -1017,8 +1042,11 @@ def _add_terraced_paddy_details(col_env, col_veg, veg_lib, paddy_base: float, st
                 if 74.0 <= rx <= 98.0 and -52.0 <= ry <= -26.0:
                     continue
                 stubble_pts.append((float(rx), float(ry), zt + 0.04))
+    rice_meshes = [veg_lib["rice_patch"], veg_lib.get("rice_patch_1", veg_lib["rice_patch"]),
+                   veg_lib.get("rice_patch_2", veg_lib["rice_patch"])]
     stats["crops"] += _scatter_instances(
-        col_veg, "RiceStubble", [veg_lib["rice_patch"]], [1.0], stubble_pts, (0.95, 1.12), rng, align_yaw_rad=0.0
+        col_veg, "RiceStubble", rice_meshes, [0.34, 0.33, 0.33], stubble_pts, (0.90, 1.16), rng,
+        align_yaw_rad=None, non_uniform=True
     )
 
 

@@ -99,8 +99,9 @@ jobs:
           json.dump(mine, open("my_frames.json", "w"))
           print(f"Worker ${{ matrix.worker }} rendering {len(mine)} missing frames")
           EOF
+          BLEND_PATH=$(find build -name film.blend | head -n 1)
           python src/pipeline/render_worker.py \
-            --blend build/film.blend \
+            --blend "$BLEND_PATH" \
             --out-dir patched_frames \
             --frames-file my_frames.json \
             --width ${{ inputs.width }} --height ${{ inputs.height }} \
@@ -164,4 +165,4 @@ jobs:
             cp deliverables/film_1080p.mp4 deliveries/
           fi
           git add deliveries/ docs/ffprobe_report.json
-          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git push)
+          git diff --cached --quiet || (git commit -m "Deliver verified final film MP4s, thumbnails & ffprobe report" && git pull --rebase origin main && git push)

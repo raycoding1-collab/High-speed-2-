@@ -44,6 +44,7 @@ def make_box_pbr_material(
     ao_dist: float = 1.8,
     metallic: float = 0.0,
     macro_var: float = 0.18,
+    obj_var: float = 0.0,
 ) -> bpy.types.Material:
     """
     Build a Cycles Principled BSDF driven by Poly Haven 2K scanned PBR maps (albedo/normal/rough)
@@ -92,6 +93,23 @@ def make_box_pbr_material(
         mt.inputs[7].default_value = (*tint_rgb, 1.0)
         nt.links.new(col_sock, mt.inputs[6])
         col_sock = mt.outputs[2]
+
+    # Optional per-instance Object Info hue/value variation (kills visual repetition across instanced roofs/walls/rocks!)
+    if obj_var > 0.001:
+        oi = nt.nodes.new("ShaderNodeObjectInfo")
+        mv = nt.nodes.new("ShaderNodeMapRange")
+        mv.inputs["To Min"].default_value = 1.0 - obj_var
+        mv.inputs["To Max"].default_value = 1.0 + obj_var
+        mh = nt.nodes.new("ShaderNodeMapRange")
+        mh.inputs["To Min"].default_value = 0.5 - obj_var * 0.12
+        mh.inputs["To Max"].default_value = 0.5 + obj_var * 0.12
+        hsv = nt.nodes.new("ShaderNodeHueSaturation")
+        nt.links.new(oi.outputs["Random"], mv.inputs["Value"])
+        nt.links.new(oi.outputs["Random"], mh.inputs["Value"])
+        nt.links.new(mv.outputs["Result"], hsv.inputs["Value"])
+        nt.links.new(mh.outputs["Result"], hsv.inputs["Hue"])
+        nt.links.new(col_sock, hsv.inputs["Color"])
+        col_sock = hsv.outputs["Color"]
 
     # Macro world-space weathering / tonal breakup (kills tile repetition completely!)
     if macro_var > 0.001:

@@ -39,6 +39,7 @@ def render_motion_preview(blend_path: str, physics_csv: str, audio_wav: str, out
         sc.cycles.diffuse_bounces = 2
         sc.cycles.glossy_bounces = 2
         sc.cycles.use_denoising = True
+        sc.render.use_persistent_data = True
         sc.render.image_settings.file_format = "PNG"
 
     prev_dir = os.path.join(REPO_ROOT, "build", "preview_frames")

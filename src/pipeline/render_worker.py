@@ -79,6 +79,7 @@ def render_frames(
 
     expected_sz = tuple(res) if res else None
     rendered, skipped = 0, 0
+    prev_sc = None
 
     for f in frames:
         shot = specs.get_shot_for_frame(f)
@@ -89,6 +90,10 @@ def render_frames(
             continue
 
         sc = bpy.data.scenes[f"Scene_{shot.loc_id}"]
+        if prev_sc is not None and prev_sc != sc:
+            prev_sc.render.use_persistent_data = False
+        sc.render.use_persistent_data = True
+        prev_sc = sc
         bpy.context.window.scene = sc
         sc.camera = bpy.data.objects[f"Cam_{shot.shot_id}"]
         sc.view_settings.exposure = shot.exposure_ev

@@ -14,10 +14,10 @@
       "pass": true
     },
     "loc2_kofu_fuji": {
-      "total_mesh_instances": 5067,
+      "total_mesh_instances": 4779,
       "by_collection": {
         "Env_loc2_kofu_fuji": 110,
-        "Veg_loc2_kofu_fuji": 4621,
+        "Veg_loc2_kofu_fuji": 4333,
         "Bldg_loc2_kofu_fuji": 85,
         "Train_loc2_kofu_fuji": 110,
         "Wake_S04": 140,
@@ -115,21 +115,21 @@
       "samples": 16
     },
     "S03": {
-      "mean_luma": 0.531,
-      "p05_luma": 0.218,
+      "mean_luma": 0.528,
+      "p05_luma": 0.221,
       "p95_luma": 0.799,
       "crushed_black_pct": 0.0,
       "clipped_white_pct": 0.0,
       "shadow_mean_rgb": [
-        0.325,
-        0.28,
-        0.2
+        0.344,
+        0.278,
+        0.203
       ],
-      "shadow_teal_excess": -0.085,
+      "shadow_teal_excess": -0.103,
       "color_pass": true,
       "exposure_pass": true,
       "hero_frame": 464,
-      "render_sec_local_2core": 144.28,
+      "render_sec_local_2core": 150.81,
       "resolution": [
         1280,
         720
@@ -203,21 +203,21 @@
       "samples": 20
     },
     "S07": {
-      "mean_luma": 0.349,
-      "p05_luma": 0.034,
+      "mean_luma": 0.354,
+      "p05_luma": 0.044,
       "p95_luma": 0.821,
-      "crushed_black_pct": 3.3,
+      "crushed_black_pct": 2.66,
       "clipped_white_pct": 0.0,
       "shadow_mean_rgb": [
-        0.121,
-        0.09,
-        0.04
+        0.14,
+        0.111,
+        0.057
       ],
       "shadow_teal_excess": -0.056,
       "color_pass": true,
       "exposure_pass": true,
       "hero_frame": 1200,
-      "render_sec_local_2core": 162.35,
+      "render_sec_local_2core": 175.41,
       "resolution": [
         1280,
         720
