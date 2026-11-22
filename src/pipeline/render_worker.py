@@ -97,6 +97,8 @@ def render_frames(
         bpy.context.window.scene = sc
         sc.camera = bpy.data.objects[f"Cam_{shot.shot_id}"]
         sc.view_settings.exposure = shot.exposure_ev
+        import physics
+        sc.render.motion_blur_shutter = physics.frame_shutter_fraction(f)
         sc.frame_set(f)
 
         # Render to temp path then atomic rename so partial writes never pollute out_dir

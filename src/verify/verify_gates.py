@@ -126,12 +126,12 @@ def run_all_gates(blend_path: str, res=(1920, 1080), samples: int = 48, shots_fi
     # Pick hero frame where train is prominently framed in each shot!
     hero_frac = {
         "S01": 0.28,  # Exact moment nose bursts out of slotted concrete buffer hood!
-        "S02": 0.42,  # Nose 16m away slicing toward low U-trough camera showing 10cm levitation gap & coils!
+        "S02": 0.56,  # Peak 0.20x Phantom Flex4K slow-mo: nose 28m away slicing toward low U-trough camera!
         "S03": 0.48,  # Full train sweeping across Kofu curved viaduct beneath snow-capped Mt Fuji!
         "S04": 0.46,  # Train overtaking camera car overhead!
-        "S05": 0.50,  # Train climbing Minami Alps viaduct in 150mm compression!
+        "S05": 0.50,  # Train climbing Minami Alps viaduct in telephoto compression!
         "S06": 0.48,  # Train streaking across 52m high Tenryu River Gorge viaduct!
-        "S07": 0.50,  # Train emerging from noise hood behind Kiso Torii & terraced rice paddies!
+        "S07": 0.52,  # Peak 0.28x slow-mo: sleek nose & cabin gliding directly above Kiso Torii & shrine!
         "S08": 0.45,  # 603 km/h onboard nose-cam rushing down U-trough!
         "S09": 0.48,  # 603 km/h helicopter 3/4 chase!
         "S10": 0.48,  # Train racing into sunset mountain buffer hood!
@@ -151,6 +151,8 @@ def run_all_gates(blend_path: str, res=(1920, 1080), samples: int = 48, shots_fi
         sc.render.image_settings.file_format = "PNG"
 
         hf = int(round(shot.frame_start + (shot.frame_end - shot.frame_start) * hero_frac[shot.shot_id]))
+        import physics
+        sc.render.motion_blur_shutter = physics.frame_shutter_fraction(hf)
         sc.frame_set(hf)
 
         png_out = os.path.join(REPO_ROOT, "build", "test_frames", f"{shot.shot_id}_f{hf:04d}.png")

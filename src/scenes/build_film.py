@@ -68,8 +68,8 @@ def build_master_film(out_blend: str, samples: int = 48, res=(1920, 1080)) -> di
         sc.frame_start = 1
         sc.frame_end = specs.TOTAL_FRAMES
 
-        # Consistent late-autumn golden-hour lighting across all 6 locations!
-        sun_meta = setup_golden_hour_world(sc, hdri_path, hdri_strength=0.78, sun_strength=7.2, add_aerial_haze=True)
+        # Consistent dramatic late-autumn golden-hour lighting across all 6 locations!
+        sun_meta = setup_golden_hour_world(sc, hdri_path, hdri_strength=0.34, sun_strength=12.0, add_aerial_haze=True)
         sun_meta_all[loc_id] = sun_meta
 
         # Build DEM terrain + guideway + species-correct vegetation + hamlet/shrine/river
@@ -108,9 +108,11 @@ def build_master_film(out_blend: str, samples: int = 48, res=(1920, 1080)) -> di
 
                 cam_o.location = fp.cam_pos
                 cam_o.rotation_euler = _aim_camera_matrix(fp.cam_pos, fp.cam_target)
+                cam_d.lens = fp.focal_mm
                 cam_d.dof.focus_distance = fp.focus_dist_m
                 cam_o.keyframe_insert("location", frame=fp.frame)
                 cam_o.keyframe_insert("rotation_euler", frame=fp.frame)
+                cam_d.keyframe_insert("lens", frame=fp.frame)
                 cam_d.dof.keyframe_insert("focus_distance", frame=fp.frame)
 
             # Set LINEAR interpolation on train motion fcurves so velocity is physically exact (no ease-in/out!)
@@ -120,16 +122,17 @@ def build_master_film(out_blend: str, samples: int = 48, res=(1920, 1080)) -> di
                         if shot.frame_start <= kp.co.x <= shot.frame_end:
                             kp.interpolation = "LINEAR"
 
-            # Add finite aerodynamic slipstream wake leaves on trackside/pass-by shots!
+            # Add finite aerodynamic slipstream wake leaves synced to exact speed-ramp t_sim(f)!
             if shot.shot_id in ("S01", "S02", "S04", "S07", "S10"):
-                s_wake = {"S01": 35.0, "S02": 145.0, "S04": 45.0, "S07": 45.0, "S10": 980.0}[shot.shot_id]
+                s_wake = {"S01": 35.0, "S02": 145.0, "S04": 45.0, "S07": 62.0, "S10": 980.0}[shot.shot_id]
                 z_wake = 0.6 if shot.shot_id in ("S01", "S02", "S10") else -loc.viaduct_elev_above_ground + 2.5
+                n_wake = 180 if shot.shot_id == "S07" else 140
                 col_wake = bpy.data.collections.new(f"Wake_{shot.shot_id}")
                 sc.collection.children.link(col_wake)
                 wake_count += add_slipstream_wake_leaves(
                     col_wake, veg_lib, loc, s_wake, z_wake,
                     shot.frame_start, shot.frame_end, shot.train_x0_m, shot.speed_ms,
-                    count=140, seed=700 + shot.frame_start
+                    count=n_wake, seed=700 + shot.frame_start, shot=shot
                 )
 
         # Add parked/driving Japanese rural sedan on Kofu parallel road (loc2) for human scale!

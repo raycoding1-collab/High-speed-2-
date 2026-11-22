@@ -28,6 +28,8 @@ PBR_TEXTURES = {
 CC0_MODELS = {
     "fir_tree": "fir_tree_01",
     "pine_tree": "pine_tree_01",
+    "broadleaf_tree": "tree_small_02",
+    "grass_clump": "grass_medium_01",
     "boulder": "boulder_01",
 }
 

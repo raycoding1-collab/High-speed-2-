@@ -76,6 +76,14 @@
       "asset_id": "pine_tree_01",
       "file": "pine_tree_01.blend"
     },
+    "broadleaf_tree": {
+      "asset_id": "tree_small_02",
+      "file": "tree_small_02.blend"
+    },
+    "grass_clump": {
+      "asset_id": "grass_medium_01",
+      "file": "grass_medium_01.blend"
+    },
     "boulder": {
       "asset_id": "boulder_01",
       "file": "boulder_01.blend"

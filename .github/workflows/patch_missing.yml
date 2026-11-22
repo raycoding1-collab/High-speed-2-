@@ -42,16 +42,15 @@ jobs:
           mkdir -p orig_artifacts
           for rid in ${{ inputs.original_run_id }}; do
             mkdir -p "orig_artifacts/run_${rid}"
-            gh run download "$rid" -D "orig_artifacts/run_${rid}" || true
+            gh run download "$rid" -p "frames-*" -D "orig_artifacts/run_${rid}" || true
           done
       - name: Scan for missing or corrupt frames
         id: scan
         run: |
-          AUDIO_WAV=$(find orig_artifacts -name soundtrack.wav | head -n 1)
           python src/pipeline/encode_deliverables.py \
             --src-dirs orig_artifacts \
             --merged-dir merged_existing \
-            --audio "$AUDIO_WAV" \
+            --audio dummy.wav \
             --out-dir patch_meta \
             --width ${{ inputs.width }} --height ${{ inputs.height }} \
             --check-only
@@ -128,16 +127,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p all_sources/orig all_sources/patch
+          FIRST_RID=$(echo "${{ inputs.original_run_id }}" | awk '{print $1}')
+          gh run download "$FIRST_RID" -n film-scene-and-audio -D all_sources/scene_audio
+          rm -f all_sources/scene_audio/film.blend
           for rid in ${{ inputs.original_run_id }}; do
             mkdir -p "all_sources/orig/run_${rid}"
-            gh run download "$rid" -D "all_sources/orig/run_${rid}" || true
+            gh run download "$rid" -p "frames-*" -D "all_sources/orig/run_${rid}" || true
           done
       - uses: actions/download-artifact@v4
         with:
           path: all_sources/patch
       - name: Safe merge, verify all 1800 frames & encode deliverables
         run: |
-          AUDIO_WAV=$(find all_sources/orig -name soundtrack.wav | head -n 1)
+          AUDIO_WAV=$(find all_sources/scene_audio -name soundtrack.wav | head -n 1)
           python src/pipeline/encode_deliverables.py \
             --src-dirs all_sources/orig all_sources/patch \
             --merged-dir merged_frames \

@@ -38,6 +38,8 @@ class FramePhysics:
     shutter_s: float
     blur_length_m: float
     rig_type: str
+    time_scale: float = 1.0
+    shutter_fraction: float = 0.50
 
 
 def _lerp(a: float, b: float, t: float) -> float:
@@ -49,48 +51,119 @@ def _smooth(t: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
-def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
-                             t_local: float, frac: float, train_s: float) -> Tuple[Tuple[float, float, float], Tuple[float, float, float], float]:
+def _cos_ramp(u: float) -> float:
+    u = max(0.0, min(1.0, u))
+    return 0.5 * (1.0 - math.cos(math.pi * u))
+
+
+# Cinema Showstopper Ultra-Slow-Mo Speed-Ramp Profiles: (f_in0, f_in1, f_out0, f_out1, min_scale)
+# Smooth cosine S-curve transition from 24 fps real-time (1.0x) -> 240–300 fps Phantom Flex4K ultra-slow-mo -> 24 fps!
+SPEED_RAMP_PROFILES: Dict[str, Tuple[float, float, float, float, float]] = {
+    "S02": (0.22, 0.34, 0.72, 0.84, 0.08),  # Showstopper 1: 2.66s @ 0.08x (300->24fps) over U-trough coils & 10cm levitation gap!
+    "S07": (0.24, 0.35, 0.70, 0.82, 0.10),  # Showstopper 2: 2.80s @ 0.10x (240->24fps) over Kiso Torii, shrine & swirling leaves!
+}
+
+
+def shot_time_scale(shot_id: str, frac: float) -> float:
+    """Instantaneous playback time_scale (1.0 = real time, 0.08 = 12.5x Phantom Flex4K ultra-slow-motion)."""
+    prof = SPEED_RAMP_PROFILES.get(shot_id)
+    if prof is None:
+        return 1.0
+    f0, f1, f2, f3, s_min = prof
+    if frac <= f0 or frac >= f3:
+        return 1.0
+    if frac < f1:
+        return _lerp(1.0, s_min, _cos_ramp((frac - f0) / (f1 - f0)))
+    if frac <= f2:
+        return s_min
+    return _lerp(s_min, 1.0, _cos_ramp((frac - f2) / (f3 - f2)))
+
+
+def shot_shutter_fraction(shot_id: str, frac: float) -> float:
     """
-    Return (cam_pos, cam_target, focus_dist_m) in local guideway-datum coordinates (where guideway floor at s=0 is Z=0).
-    All camera trajectories obey real-world physical rig speed limits and framing around a 299 m train at 138.9–167.5 m/s!
+    Adaptive cinema shutter angle mapped directly to the time-ramp curve:
+    - Real-time 1.0x: standard 180-deg film shutter (0.50 frames -> full 2.89 m 500 km/h speed blur!)
+    - Ultra-slow-mo plateau (0.08x / 0.10x): razor-sharp 72-deg Phantom high-speed shutter (0.20 frames -> ~9-12 cm blur!)
+    """
+    ts = shot_time_scale(shot_id, frac)
+    if ts >= 0.999:
+        return specs.SHUTTER_FRACTION
+    u = max(0.0, min(1.0, (1.0 - ts) / 0.90))
+    return _lerp(specs.SHUTTER_FRACTION, 0.20, u)
+
+
+def frame_shutter_fraction(frame: int) -> float:
+    """Return adaptive Blender `motion_blur_shutter` fraction for any frame 1..1800."""
+    shot = specs.get_shot_for_frame(frame)
+    frac = (frame - shot.frame_start) / max(1, shot.num_frames - 1)
+    return shot_shutter_fraction(shot.shot_id, frac)
+
+
+def shot_sim_time_array(shot: specs.ShotSpec) -> Tuple[List[float], List[float]]:
+    """Integrate exact physical simulation time t_sim(idx) via trapezoidal quadrature of time_scale(frac)."""
+    n = shot.num_frames
+    dt = 1.0 / specs.FPS
+    scales = [shot_time_scale(shot.shot_id, idx / max(1, n - 1)) for idx in range(n)]
+    t_sims = [0.0]
+    for idx in range(1, n):
+        t_sims.append(t_sims[-1] + 0.5 * (scales[idx - 1] + scales[idx]) * dt)
+    return t_sims, scales
+
+
+def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
+                             t_local: float, frac: float, train_s: float) -> Tuple[Tuple[float, float, float], Tuple[float, float, float], float, float]:
+    """
+    Return (cam_pos, cam_target, focus_dist_m, focal_mm) in local guideway-datum coordinates.
+    Includes physically grounded cinema camera shifts snapping cleanly into our 2 ultra-slow-mo showstopper beats!
     """
     nose_pos, nose_eul = specs.guideway_pose_at_s(train_s, loc)
     mid_pos, _ = specs.guideway_pose_at_s(train_s - 65.0, loc)
     tail_pos, _ = specs.guideway_pose_at_s(train_s - specs.TRAIN_TOTAL_LENGTH, loc)
+    focal_mm = shot.focal_mm
 
     sid = shot.shot_id
     if sid == "S01":
         # Tripod tele (85 mm) on hillside framing slotted concrete buffer hood mouth (s=0) & emerging train!
         cp0, _ = specs.guideway_pose_at_s(175.0, loc)
         cam_pos = (175.0, -64.0, cp0[2] + 22.0)
-        # Hold on portal mouth s=0 until nose bursts out, then gently pan with emerging nose
         pan_s = max(-8.0, min(185.0, (train_s - 25.0) * 0.55))
         tp, _ = specs.guideway_pose_at_s(pan_s, loc)
         cam_target = (tp[0], tp[1] + 2.0, tp[2] + 3.0)
 
     elif sid == "S02":
-        # Ultra-low guideway-level camera inside Track 1 U-trough clearance (grade-corrected via cp[2]!)
+        # SHOWSTOPPER 1: Low trackside jib inside Track 1 U-trough!
+        # Fast grounded jib push-in & par-focal lens snap (35 -> 52 mm) right into 2.66s @ 0.08x ultra-slow-mo
+        # focusing razor-sharp on the gleaming L0-950 nose, 10 cm levitation gap & figure-8 sidewall coils!
         cp, _ = specs.guideway_pose_at_s(185.0, loc)
-        cam_pos = (cp[0], cp[1] - 1.48, cp[2] + 0.56)
-        # Look upstream along figure-8 sidewall coils & 10 cm levitation gap as sleek nose rockets past!
-        look_s = 120.0 + 60.0 * _smooth((train_s - 20.0) / 220.0)
+        push_in = _cos_ramp((frac - 0.18) / 0.16)
+        pull_out = _cos_ramp((frac - 0.72) / 0.14)
+        jib_w = max(0.0, push_in - pull_out)
+        # Subtle slow orbital jib slide toward trough floor & coils during ultra-slow-mo (physically grounded 0.45 m rail!)
+        jib_x = cp[0] - 0.45 * jib_w
+        jib_y = cp[1] - 1.50 + 0.16 * jib_w
+        jib_z = cp[2] + 0.62 - 0.14 * jib_w
+        cam_pos = (jib_x, jib_y, jib_z)
+        # Snap-zoom 35 mm -> 52 mm into slow-mo, whip back to 32 mm on explosive full-speed exit!
+        focal_mm = 35.0 + 17.0 * jib_w - 3.0 * pull_out
+        # Smooth whip-track following the nose as it glides from 28 m -> 2 m past the lens!
+        look_s = min(182.0, max(118.0, _lerp(122.0, min(180.0, train_s - 2.0), push_in)))
         tp, _ = specs.guideway_pose_at_s(look_s, loc)
-        cam_target = (tp[0], tp[1] + 0.12, tp[2] + 0.85)
+        cam_target = (tp[0], tp[1] + 0.06, tp[2] + 0.78 - 0.12 * jib_w)
+        # Lock crisp focus directly onto the approaching nose tip during ultra-slow-mo!
+        focus_dist = max(4.5, min(90.0, abs(jib_x - min(train_s, jib_x - 4.0))))
+        return cam_pos, cam_target, focus_dist, focal_mm
 
     elif sid == "S03":
-        # HERO MONEY SHOT: Helicopter aerial over Kofu-West Basin framing sweeping R=8000m viaduct
-        # across the lower quarter while unobstructed snow-capped Mt Fuji (36.1 km along +Y, +5.45 deg peak!) towers above!
-        s_cam = -100.0 + 380.0 * frac   # 380 m / 9.0 s = 42.2 m/s
+        # HERO MONEY SHOT: Helicopter aerial over Kofu-West Basin framing sweeping R=8000m viaduct beneath Mt Fuji!
+        s_cam = -100.0 + 380.0 * frac
         cp, _ = specs.guideway_pose_at_s(s_cam, loc)
         cam_pos = (cp[0] + 20.0, cp[1] - 210.0, cp[2] + 24.0)
-        # Aim cleanly across viaduct (+1.1 deg pitch -> viaduct in lower quarter, Fuji snow cone in upper half!)
         aim_s = _lerp(-40.0, 240.0, frac)
         tp, _ = specs.guideway_pose_at_s(aim_s, loc)
         cam_target = (tp[0], tp[1] + 260.0, tp[2] + 30.0)
 
     elif sid == "S04":
-        # Parallel rural farm road camera car at 80 km/h (22.22 m/s) on gently raised orchard terrace
+        # Parallel rural farm road camera car at 80 km/h (22.22 m/s)
         car_s = -30.0 + 22.22 * t_local
         cp, _ = specs.guideway_pose_at_s(car_s, loc)
         cam_pos = (cp[0], cp[1] - 34.0, cp[2] - 7.2)
@@ -99,8 +172,7 @@ def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
         cam_target = (tp[0], tp[1], tp[2] + 2.4)
 
     elif sid == "S05":
-        # 72 mm telephoto tripod in sunlit valley framing climbing 2.5% viaduct across lower third
-        # with snow-capped 3,193 m Kita-dake & Minami Alps peaks rising dramatically into the upper half!
+        # 72 mm telephoto tripod in sunlit valley framing climbing 2.5% viaduct against 3,193 m Minami Alps!
         cp, _ = specs.guideway_pose_at_s(180.0, loc)
         cam_pos = (cp[0], cp[1] - 185.0, cp[2] + 6.0)
         aim_s = max(-160.0, min(180.0, train_s - 55.0))
@@ -108,8 +180,7 @@ def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
         cam_target = (tp[0], tp[1], tp[2] + 15.0)
 
     elif sid == "S06":
-        # Cinema drone elevated 22-29 m above Tenryu River Gorge (23 m/s max — tries to pace train and gets left behind!)
-        # Elevated 3/4 downward angle shows full L0-950 livery/nose, 45 m tall piers, granite boulders & emerald river!
+        # Cinema drone elevated 22-29 m above Tenryu River Gorge (23 m/s max)
         drone_s = -75.0 + 176.0 * frac
         cam_pos = (drone_s, -108.0, 21.0 + 7.5 * frac)
         aim_s = max(-180.0, min(300.0, train_s - 50.0))
@@ -117,13 +188,19 @@ def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
         cam_target = (tp[0], tp[1], tp[2] - 3.0)
 
     elif sid == "S07":
-        # Locked-off cinematic tripod in Kiso rural hamlet: keeps Torii (x=74), kawara houses, paddies & cedar mountains
-        # 100% razor-sharp while the 500 km/h L0-950 streaks across the viaduct with crisp 180-deg motion blur!
+        # SHOWSTOPPER 2: Kiso rural hamlet fluid-head cinema tripod!
+        # Fast whip-pan from acoustic noise hood + crisp par-focal zoom push-in (44 -> 62 mm) snapping directly into
+        # 2.80s @ 0.10x ultra-slow-mo right over the vermilion Torii (x=60) & cedar shrine (x=66) with swirling maple leaves!
         cp, _ = specs.guideway_pose_at_s(45.0, loc)
         cam_pos = (45.0, -84.0, cp[2] - loc.viaduct_elev_above_ground + 5.5)
-        pan_s = _lerp(58.0, 72.0, frac)
+        zoom_in = _cos_ramp((frac - 0.22) / 0.14)
+        zoom_out = _cos_ramp((frac - 0.70) / 0.13)
+        z_w = max(0.0, zoom_in - zoom_out)
+        focal_mm = 44.0 + 18.0 * z_w + 4.0 * zoom_out
+        # Whip-pan from hood mouth (s=32) to lock right onto Torii & gliding nose (s=61..68), then follow exit!
+        pan_s = _lerp(34.0, 62.0, zoom_in) + 6.5 * _smooth((frac - 0.35) / 0.35) + 12.0 * zoom_out
         tp, _ = specs.guideway_pose_at_s(pan_s, loc)
-        cam_target = (tp[0], tp[1] - 4.0, tp[2] - 1.5)
+        cam_target = (tp[0], tp[1] - 4.0, tp[2] - 1.4 + 0.6 * z_w)
 
     elif sid == "S08":
         # RECORD RUN (603 km/h = 167.5 m/s): Onboard forward nose camera right above L0-950 camera visor!
@@ -140,57 +217,58 @@ def evaluate_camera_for_shot(shot: specs.ShotSpec, loc: specs.LocationSpec,
         cam_target = (tp[0], tp[1], tp[2] + 2.0)
 
     elif sid == "S10":
-        # Closing sunset shot: tripod looking down viaduct as train races away (+X) into far mountain buffer hood (s=+1050 m)
-        cp, _ = specs.guideway_pose_at_s(520.0, loc)
-        cam_pos = (520.0, -34.0, cp[2] + 14.0)
-        aim_s = max(660.0, min(1060.0, train_s - 35.0))
+        # Closing sunset shot: off-axis elevated tripod showing wide 38 m pier spans & U-trough diving into slotted portal
+        cp, _ = specs.guideway_pose_at_s(580.0, loc)
+        cam_pos = (580.0, -108.0, cp[2] + 22.0)
+        aim_s = max(720.0, min(1060.0, train_s - 25.0))
         tp, _ = specs.guideway_pose_at_s(aim_s, loc)
-        cam_target = (tp[0], tp[1] + 2.0, tp[2] + 2.8)
+        cam_target = (tp[0], tp[1] + 2.0, tp[2] + 2.0)
 
     else:
         raise ValueError(f"Unknown shot_id {sid}")
 
     focus_dist = max(4.0, math.dist(cam_pos, cam_target))
-    return cam_pos, cam_target, focus_dist
+    return cam_pos, cam_target, focus_dist, focal_mm
 
 
 def compute_all_frames() -> List[FramePhysics]:
-    """Simulate every frame 1..1800 and compute exact velocities and blur lengths."""
+    """Simulate every frame 1..1800 with exact Phantom Flex4K speed-ramp integration, adaptive shutter & focal shifts."""
     records: List[FramePhysics] = []
     dt = 1.0 / specs.FPS
 
     for shot in specs.SHOTS:
         loc = specs.LOCATIONS[shot.loc_id]
         n = shot.num_frames
+        t_sims, scales = shot_sim_time_array(shot)
         prev_cam = None
         for idx in range(n):
             frame = shot.frame_start + idx
-            t_local = idx * dt
+            t_sim = t_sims[idx]
+            ts = scales[idx]
             frac = idx / max(1, n - 1)
-            train_s = shot.train_x0_m + shot.speed_ms * t_local
+            sh_frac = shot_shutter_fraction(shot.shot_id, frac)
+            train_s = shot.train_x0_m + shot.speed_ms * t_sim
             pos, eul = specs.guideway_pose_at_s(train_s, loc)
-            # Subtle EDS magnetic levitation micro-oscillation (±3 mm vertical, ±0.04 deg roll)
-            heave = 0.003 * math.sin(2.0 * math.pi * 3.7 * t_local)
+            heave = 0.003 * math.sin(2.0 * math.pi * 3.7 * t_sim)
             pos = (pos[0], pos[1], pos[2] + heave)
 
-            cam_pos, cam_target, focus_dist = evaluate_camera_for_shot(shot, loc, t_local, frac, train_s)
+            cam_pos, cam_target, focus_dist, focal_mm = evaluate_camera_for_shot(shot, loc, t_sim, frac, train_s)
             if prev_cam is None:
-                # Forward difference for frame 0 of shot
-                cam_next, _, _ = evaluate_camera_for_shot(shot, loc, t_local + dt, min(1.0, (idx + 1) / max(1, n - 1)),
-                                                          train_s + shot.speed_ms * dt)
+                t_sim_next = t_sims[min(n - 1, idx + 1)]
+                cam_next, _, _, _ = evaluate_camera_for_shot(shot, loc, t_sim_next, min(1.0, (idx + 1) / max(1, n - 1)),
+                                                             shot.train_x0_m + shot.speed_ms * t_sim_next)
                 cam_speed = math.dist(cam_pos, cam_next) / dt
             else:
                 cam_speed = math.dist(cam_pos, prev_cam) / dt
             prev_cam = cam_pos
 
-            # Distance from camera to nearest point on the 299 m train
             t_mid_s = max(train_s - specs.TRAIN_TOTAL_LENGTH, min(train_s, cam_pos[0]))
             t_near_pos, _ = specs.guideway_pose_at_s(t_mid_s, loc)
             cam_dist = math.dist(cam_pos, t_near_pos)
 
-            # Effective relative blur displacement during 180-deg shutter (1/48 s)
-            rel_speed = abs(shot.speed_ms - cam_speed) if shot.rig_type in ("helicopter", "car", "drone", "onboard_nose") else shot.speed_ms
-            blur_len = shot.speed_ms * specs.SHUTTER_SPEED_S
+            # Exact physical exposure duration combining adaptive shutter angle & high-speed time_scale!
+            eff_shutter_s = (sh_frac / specs.FPS) * ts
+            blur_len = shot.speed_ms * eff_shutter_s
 
             records.append(FramePhysics(
                 frame=frame,
@@ -207,12 +285,14 @@ def compute_all_frames() -> List[FramePhysics]:
                 cam_target=cam_target,
                 cam_speed_ms=cam_speed,
                 cam_dist_m=cam_dist,
-                focal_mm=shot.focal_mm,
+                focal_mm=focal_mm,
                 fstop=shot.fstop,
                 focus_dist_m=focus_dist,
-                shutter_s=specs.SHUTTER_SPEED_S,
+                shutter_s=eff_shutter_s,
                 blur_length_m=blur_len,
                 rig_type=shot.rig_type,
+                time_scale=ts,
+                shutter_fraction=sh_frac,
             ))
     return records
 
@@ -227,7 +307,7 @@ def write_physics_log(out_csv: str) -> List[FramePhysics]:
             "train_speed_kmh", "train_speed_ms", "train_s_m",
             "train_x", "train_y", "train_z",
             "cam_x", "cam_y", "cam_z", "cam_speed_ms", "cam_dist_m",
-            "focal_mm", "fstop", "focus_dist_m", "shutter_s", "blur_length_m", "rig_type"
+            "focal_mm", "fstop", "focus_dist_m", "shutter_s", "blur_length_m", "rig_type", "time_scale", "shutter_fraction"
         ])
         for r in records:
             w.writerow([
@@ -237,7 +317,7 @@ def write_physics_log(out_csv: str) -> List[FramePhysics]:
                 f"{r.cam_pos[0]:.2f}", f"{r.cam_pos[1]:.2f}", f"{r.cam_pos[2]:.2f}",
                 f"{r.cam_speed_ms:.2f}", f"{r.cam_dist_m:.2f}",
                 f"{r.focal_mm:.1f}", f"{r.fstop:.1f}", f"{r.focus_dist_m:.2f}",
-                f"{r.shutter_s:.6f}", f"{r.blur_length_m:.3f}", r.rig_type
+                f"{r.shutter_s:.6f}", f"{r.blur_length_m:.3f}", r.rig_type, f"{r.time_scale:.4f}", f"{r.shutter_fraction:.3f}"
             ])
     # Sanity assert physical camera rig speed ceilings!
     for r in records:

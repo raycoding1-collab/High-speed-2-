@@ -5,8 +5,8 @@
   "duration_s": 75.0,
   "integrated_lufs": -23.0,
   "target_lufs": -23.0,
-  "true_peak_dbtp": -5.11,
+  "true_peak_dbtp": -4.5,
   "max_allowed_dbtp": -1.0,
-  "rms_dbfs": -26.4,
+  "rms_dbfs": -25.8,
   "ebu_r128_pass": true
 }

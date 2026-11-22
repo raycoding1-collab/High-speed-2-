@@ -65,19 +65,22 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
     t = np.arange(n_samples, dtype=np.float64) / SR
     stereo = np.zeros((n_samples, 2), dtype=np.float64)
 
-    # Interpolate frame kinematics smoothly to audio sample rate
+    # Interpolate frame kinematics & Phantom Flex4K time_scale smoothly to audio sample rate
     f_t = np.array([(r["frame"] - shot.frame_start) / specs.FPS for r in rows], dtype=np.float64)
     train_s = np.interp(t, f_t, [r["train_s_m"] for r in rows])
     cam_x = np.interp(t, f_t, [r["cam_x"] for r in rows])
     cam_y = np.interp(t, f_t, [r["cam_y"] for r in rows])
     cam_z = np.interp(t, f_t, [r["cam_z"] for r in rows])
+    time_scale = np.interp(t, f_t, [r.get("time_scale", 1.0) for r in rows])
+    # Integrated physical acoustic source time (slows pitch smoothly down into deep sub-bass during 0.20x/0.28x slow-mo!)
+    t_phase = np.cumsum(time_scale) / SR
     train_v = shot.speed_ms
 
     # Speed power factor: aero noise scales as (v / 138.9)^2.6 in amplitude (~v^5.2 in acoustic power)
     v_amp = (train_v / specs.SPEED_SERVICE_MS) ** 2.6
 
     # 1) DISTRIBUTED AERODYNAMIC MAGLEV SOURCE ALONG THE 299 m TRAIN (6 coherent bands: nose, body, bogie wakes, tail)
-    # Each source uses exact retarded-time delay, 1/r spreading, stereo ITD/ILD panning, and Doppler shift!
+    # Each source uses exact retarded-time delay, 1/r spreading, stereo ITD/ILD panning, and Doppler + speed-ramp shift!
     base_pink = _pink_noise(n_samples + SR * 2, rng)
     aero_low = _bp(base_pink, 32.0, 220.0, 3)     # Deep boundary-layer aerodynamic rumble
     aero_mid = _bp(base_pink, 180.0, 1400.0, 3)   # Bogie cavity & fuselage rush
@@ -92,42 +95,36 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
 
     if shot.rig_type == "onboard_nose":
         # S08: Onboard camera above 603 km/h nose — intense rushing slipstream + deep pressure wind + subtle coil pass ripple
-        # No harsh tonal whine — broadband turbulent boundary layer wind!
         rush_lo = _bp(_pink_noise(n_samples, rng), 28.0, 190.0, 3) * 0.55
         rush_mid = _bp(_pink_noise(n_samples, rng), 180.0, 1800.0, 3) * 0.42
         rush_hi = _bp(_pink_noise(n_samples, rng), 1500.0, 5500.0, 3) * 0.18
-        # Subtle broadband coil-bay aerodynamic flutter (~167.5 / 0.9 m modulated softly, no pure sine!)
         mod = 1.0 + 0.08 * np.sin(2.0 * np.pi * 6.5 * t)
         sig = (rush_lo + rush_mid + rush_hi) * mod * v_amp * 0.65
-        # Slight stereo turbulence decorrelation
         sig2 = _bp(_pink_noise(n_samples, rng), 80.0, 2400.0, 3) * 0.18 * v_amp
         train_L += sig + sig2
         train_R += sig - sig2
     else:
         for off_m, w_seg in zip(seg_offsets, seg_weights):
-            # Position of this train segment (approx straight tangent for acoustic distance/Doppler)
             sx = train_s - off_m
             dx = sx - cam_x
             dy = -cam_y
             dz = 1.8 - cam_z
             r = np.sqrt(dx * dx + dy * dy + dz * dz) + 2.5
 
-            # Retarded time: sound arriving at `t` was emitted at `t_emit = t - r / c`
-            # (Exact Doppler pitch shift naturally emerges from sampling the source buffer at `t_emit`!)
-            t_emit = t - r / C_SOUND
+            # Retarded time synced to speed-ramp phase: natural Doppler + cinema slow-mo pitch drop!
+            t_emit = t_phase - (r / C_SOUND) * time_scale
             idx_emit = np.clip((t_emit + 1.0) * SR, 0.0, len(aero_low) - 2.0)
 
-            # Interpolate source streams at retarded time -> TRUE DOPPLER SHIFT!
             s_lo = np.interp(idx_emit, np.arange(len(aero_low)), aero_low)
             s_md = np.interp(idx_emit, np.arange(len(aero_mid)), aero_mid)
             s_hi = np.interp(idx_emit, np.arange(len(aero_hi)), aero_hi)
 
-            # 1/r spherical spreading + frequency-dependent ISO 9613 atmospheric air absorption
+            # 1/r spherical spreading + frequency-dependent ISO 9613 atmospheric air absorption + slow-mo HF damping
             att_geo = 16.0 / (r + 8.0)
-            abs_mid = np.exp(-r * 0.0022)
-            abs_hi = np.exp(-r * 0.0085)
+            abs_mid = np.exp(-r * 0.0022) * (0.35 + 0.65 * time_scale)
+            abs_hi = np.exp(-r * 0.0085) * (time_scale ** 1.35)
 
-            # Tunnel/Hood muffling when segment is inside tunnel (S01: sx<0; S10: sx>1050) or noise hood (S07: -420.. -40)
+            # Tunnel/Hood muffling when segment is inside tunnel (S01: sx<0; S10: sx>1050) or noise hood (S07: -420..-40)
             muffle = np.ones(n_samples, dtype=np.float64)
             if shot.shot_id == "S01":
                 in_tun = sx < 0.0
@@ -139,7 +136,7 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
                 in_hood = (sx >= -420.0) & (sx <= -40.0)
                 muffle = np.where(in_hood, 0.38, 1.0)
 
-            seg_sig = (s_lo * 0.65 + s_md * 0.55 * abs_mid + s_hi * 0.35 * abs_hi) * att_geo * muffle * w_seg * v_amp
+            seg_sig = (s_lo * (0.65 + 0.45 * (1.0 - time_scale)) + s_md * 0.55 * abs_mid + s_hi * 0.35 * abs_hi) * att_geo * muffle * w_seg * v_amp
 
             # Constant-power stereo pan from horizontal azimuth (-1 left .. +1 right)
             pan = np.clip(dx / (r + 10.0), -0.92, 0.92)
@@ -156,15 +153,80 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
         if r_min < 85.0:
             t_pass = t[min_idx] + r_min / C_SOUND
             dt_p = t - t_pass
-            # N-wave pressure signature (compressive peak -> rarefaction trough, ~28–55 Hz)
-            sigma = max(0.035, 0.015 + r_min * 0.0012)
+            # Stretch N-wave duration smoothly when passing in Phantom Flex4K slow motion!
+            ts_pass = max(0.20, float(time_scale[min_idx]))
+            sigma = max(0.035, (0.015 + r_min * 0.0012) / (ts_pass ** 0.75))
             n_wave = -(dt_p / sigma) * np.exp(-0.5 * (dt_p / sigma) ** 2)
-            # Add turbulent wake roar burst right after nose pass
-            wake_env = np.where(dt_p > 0.0, np.exp(-dt_p / 0.55) * (1.0 - np.exp(-dt_p / 0.04)), 0.0)
-            wake_burst = _bp(_pink_noise(n_samples, rng), 35.0, 260.0, 3) * wake_env
+            wake_env = np.where(dt_p > 0.0, np.exp(-dt_p / (0.55 / ts_pass)) * (1.0 - np.exp(-dt_p / 0.06)), 0.0)
+            wake_burst = _bp(_pink_noise(n_samples, rng), 28.0, 180.0 * (0.4 + 0.6 * ts_pass), 3) * wake_env
             p_gain = min(1.3, 18.0 / (r_min + 6.0)) * v_amp
             train_L += (n_wave * 0.55 + wake_burst * 0.45) * p_gain
             train_R += (n_wave * 0.55 + wake_burst * 0.45) * p_gain
+
+        # 2b) THEATRICAL CINEMA SHOWSTOPPER SOUND DESIGN LOCKED DIRECTLY TO `time_scale(t)`:
+        #     - Entry: deep resonant sub-bass pitch-down drop (112 Hz -> 31 Hz) on deceleration ramp
+        #     - Plateau: hyper-detailed time-stretched airflow + EDS magnetic coil resonance (S02) or
+        #                slow-motion crimson leaf flutter & temple overtone (S07)
+        #     - Exit: crisp accelerating air-inhale sweep + punchy sub-bass transient snap back into 500 km/h Doppler rush!
+        slow_amt = np.clip((1.0 - time_scale) / 0.88, 0.0, 1.0)
+        if np.max(slow_amt) > 0.08:
+            # Derivative of time_scale locates exact ramp-in (negative peak) & ramp-out (positive peak)!
+            dts = np.gradient(time_scale) * SR
+            idx_drop = int(np.argmin(dts))
+            idx_snap = int(np.argmax(dts))
+            t_drop = t[idx_drop]
+            t_snap = t[idx_snap]
+
+            # (i) Deep Sub-Bass Pitch-Down Drop (112 Hz -> 31 Hz exponential cinema dive over ~0.65 s)
+            dt_d = t - t_drop
+            drop_win = np.where((dt_d >= -0.18) & (dt_d <= 0.72),
+                                np.exp(-np.maximum(0.0, dt_d) / 0.32) * (1.0 - np.exp(-np.maximum(0.0, dt_d + 0.18) / 0.08)), 0.0)
+            u_d = np.clip((dt_d + 0.18) / 0.90, 0.0, 1.0)
+            f_drop = 112.0 * ((31.0 / 112.0) ** u_d)
+            ph_drop = 2.0 * np.pi * np.cumsum(f_drop) / SR
+            sub_drop = (np.sin(ph_drop) * 0.75 + 0.25 * np.sin(2.0 * ph_drop)) * drop_win * 0.78
+
+            # (ii) Hyper-Detailed Slow-Mo Texture Bed (airflow pressure + track/magnetic coil or leaf detail!)
+            sub_air = _bp(_pink_noise(n_samples, rng), 24.0, 72.0, 3) * (slow_amt ** 1.2) * 0.42
+            bed_L = sub_air.copy()
+            bed_R = sub_air * 0.95
+            if shot.shot_id == "S02":
+                # S02: Ethereal superconducting EDS figure-8 coil resonance (86/172/258 Hz modulated by stretched coil-bay crossing!)
+                coil_phase = 2.0 * np.pi * (train_s / specs.COIL_PANEL_PITCH) * 0.08
+                coil_pulse = 0.55 + 0.45 * np.cos(coil_phase)
+                mag_hum = (
+                    0.55 * np.sin(2.0 * np.pi * 86.0 * t + 0.4 * np.sin(2.0 * np.pi * 0.9 * t))
+                    + 0.30 * np.sin(2.0 * np.pi * 172.0 * t)
+                    + 0.15 * np.sin(2.0 * np.pi * 258.0 * t)
+                ) * coil_pulse * (slow_amt ** 1.6) * 0.14
+                # Hyper-detailed slow-motion boundary-layer slipstream whisper in stereo
+                air_det_L = _bp(_pink_noise(n_samples, rng), 110.0, 420.0, 3) * (slow_amt ** 1.4) * 0.16
+                air_det_R = _bp(_pink_noise(n_samples, rng), 110.0, 420.0, 3) * (slow_amt ** 1.4) * 0.16
+                bed_L += mag_hum + air_det_L
+                bed_R += mag_hum * 0.94 + air_det_R
+            elif shot.shot_id == "S07":
+                # S07: Hyper-detailed slow-motion fluttering crimson maple leaves + stretched shrine bonsho shimmer!
+                leaf_mod = 0.5 + 0.5 * np.sin(2.0 * np.pi * 2.8 * t) * np.cos(2.0 * np.pi * 1.7 * t)
+                leaf_L = _bp(_pink_noise(n_samples, rng), 180.0, 720.0, 3) * leaf_mod * (slow_amt ** 1.4) * 0.18
+                leaf_R = _bp(_pink_noise(n_samples, rng), 210.0, 780.0, 3) * (1.0 - 0.5 * leaf_mod) * (slow_amt ** 1.4) * 0.18
+                shrine_over = (np.sin(2.0 * np.pi * 71.0 * t) * 0.6 + np.sin(2.0 * np.pi * 142.0 * t) * 0.4) * (slow_amt ** 1.8) * 0.09
+                bed_L += leaf_L + shrine_over
+                bed_R += leaf_R + shrine_over * 1.04
+
+            # (iii) Crisp, Punchy Sonic Snap-Back (320 ms accelerating air-suction riser -> tight sub-bass transient crack!)
+            dt_s = t - t_snap
+            riser_win = np.where((dt_s >= -0.34) & (dt_s <= 0.02),
+                                 np.exp((dt_s + 0.34) * 7.5 - 2.55) * np.clip((dt_s + 0.34) / 0.05, 0.0, 1.0), 0.0)
+            riser_sig = _bp(_pink_noise(n_samples, rng), 220.0, 2600.0, 3) * riser_win * 0.52
+            crack_win = np.where((dt_s >= -0.01) & (dt_s <= 0.28),
+                                 np.exp(-np.maximum(0.0, dt_s) / 0.065) * np.clip((dt_s + 0.01) / 0.008, 0.0, 1.0), 0.0)
+            u_c = np.clip(np.maximum(0.0, dt_s) / 0.25, 0.0, 1.0)
+            f_crack = 44.0 + 78.0 * u_c
+            crack_sig = (np.sin(2.0 * np.pi * np.cumsum(f_crack) / SR) * 0.65
+                         + _bp(_pink_noise(n_samples, rng), 45.0, 480.0, 2) * 0.35) * crack_win * 0.85
+
+            train_L += sub_drop + bed_L + riser_sig + crack_sig
+            train_R += sub_drop + bed_R + riser_sig * 0.96 + crack_sig
 
     # 3) TUNNEL MICRO-PRESSURE-WAVE BOOM & REVERB (S01 Portal Emergence & S10 Portal Entry!)
     if shot.shot_id in ("S01", "S10"):
@@ -212,12 +274,11 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
                 amb_L[i0:i0 + dur] += chirp * 0.018 * (1.0 - pan_b)
                 amb_R[i0:i0 + dur] += chirp * 0.018 * pan_b
 
-    # Subtle distant soft Japanese temple bell (bonsho) decay in Kiso hamlet (S07, at t=0.6 s before train passes!)
+    # Subtle distant soft Japanese temple bell (bonsho) decay in Kiso hamlet (S07, at t=0.45 s before train passes!)
     if shot.shot_id == "S07":
         i0 = int(0.45 * SR)
         dur = min(n_samples - i0, int(4.5 * SR))
         bt = np.arange(dur) / SR
-        # Authentic inharmonic bonsho partials (142 Hz fundamental + 2.76x, 5.4x) with gentle beating, very quiet distant mix
         bell = (
             1.0 * np.sin(2.0 * np.pi * 142.0 * bt) * np.exp(-bt / 2.2)
             + 0.45 * np.sin(2.0 * np.pi * 142.9 * bt) * np.exp(-bt / 2.0)
@@ -231,7 +292,6 @@ def _synthesize_shot_audio(shot: specs.ShotSpec, rows: list, rng: np.random.Gene
         rig_g = {"helicopter": 0.14, "drone": 0.075, "car": 0.085}[shot.rig_type]
         wind_mic = _lp(_pink_noise(n_samples, rng), 130.0, 2) * rig_g
         if shot.rig_type == "helicopter":
-            # Very soft distant rotor air-thump modulation (~13 Hz, muffled cabin/exterior rig)
             wind_mic *= (1.0 + 0.22 * np.sin(2.0 * np.pi * 13.2 * t))
         amb_L += wind_mic
         amb_R += wind_mic * 0.96
@@ -263,6 +323,7 @@ def synthesize_full_soundtrack(physics_csv: str, out_wav: str, report_json: str)
                 "cam_x": float(row["cam_x"]),
                 "cam_y": float(row["cam_y"]),
                 "cam_z": float(row["cam_z"]),
+                "time_scale": float(row.get("time_scale", 1.0)),
             }
             rows_by_shot.setdefault(row["shot_id"], []).append(parsed)
 

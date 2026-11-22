@@ -95,8 +95,8 @@ def configure_scene_render(scene: bpy.types.Scene, res=(1920, 1080), samples: in
 def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
                             target_sun_az_deg: float = None,
                             target_sun_el_deg: float = None,
-                            hdri_strength: float = 0.52,
-                            sun_strength: float = 7.6,
+                            hdri_strength: float = 0.30,
+                            sun_strength: float = 11.8,
                             add_aerial_haze: bool = True):
     """
     Create a physically matched Golden-Hour World (CC0 HDRI + aligned high-contrast golden Sun lamp).
@@ -132,8 +132,8 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
     mix_warm = nt.nodes.new("ShaderNodeMix")
     mix_warm.data_type = "RGBA"
     mix_warm.blend_type = "MULTIPLY"
-    mix_warm.inputs["Factor"].default_value = 0.14
-    mix_warm.inputs[7].default_value = (1.0, 0.91, 0.80, 1.0)
+    mix_warm.inputs["Factor"].default_value = 0.22
+    mix_warm.inputs[7].default_value = (1.0, 0.87, 0.72, 1.0)
 
     nt.links.new(tc.outputs["Generated"], mp.inputs["Vector"])
     nt.links.new(mp.outputs["Vector"], env.inputs["Vector"])
@@ -141,12 +141,12 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
     nt.links.new(mix_warm.outputs[2], bg.inputs["Color"])
     nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
 
-    eff_el = hdri_el_deg if (10.0 <= hdri_el_deg <= 20.0) else target_sun_el_deg
+    eff_el = hdri_el_deg if (9.0 <= hdri_el_deg <= 16.0) else target_sun_el_deg
 
     sun_data = bpy.data.lights.new(f"Sun_{scene.name}", type="SUN")
     sun_data.energy = sun_strength
     sun_data.angle = math.radians(specs.SUN_ANGULAR_DIAM_DEG)
-    sun_data.color = (1.0, 0.80, 0.56)  # Crisp late-afternoon golden-hour sunlight (~4050 K)
+    sun_data.color = (1.0, 0.72, 0.42)  # Crisp dramatic golden-hour sunset light (~3800 K)
     sun_obj = bpy.data.objects.new(f"Sun_{scene.name}", sun_data)
     scene.collection.objects.link(sun_obj)
 
@@ -163,8 +163,9 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
     # atmospheric haze box or compositor Mist pass — clean, fast, noise-free, zero blocked sunlight!)
     if add_aerial_haze:
         scene.view_layers[0].use_pass_mist = True
-        world.mist_settings.start = 110.0
-        world.mist_settings.depth = 5200.0
+        scene.view_layers[0].use_pass_environment = True
+        world.mist_settings.start = 160.0
+        world.mist_settings.depth = 42000.0
         world.mist_settings.falloff = "INVERSE_QUADRATIC"
         _setup_aerial_haze_compositor(scene)
 
@@ -181,10 +182,11 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
 
 def _setup_aerial_haze_compositor(scene: bpy.types.Scene):
     """
-    Scene-linear physically motivated atmospheric aerial perspective using the Mist pass:
-    creates subtle golden-hour depth separation between foreground (<110m untouched), mid-ground
-    viaduct & hills (6-14% warm sunlit veil), and distant peaks (up to 30% atmospheric glow)
-    while preserving rich filmic contrast on long telephoto shots.
+    Zero-halo, film-grade atmospheric aerial perspective using Cycles' per-pixel Environment pass (`Env`):
+    - Blends `Image` toward the exact sky/horizon color (`Env`) behind each pixel weighted by `Mist * 0.42`.
+    - On sky pixels (`Image == Env`): mathematically invariant (`lerp(Env, Env, f) == Env` -> ZERO cutoff needed!).
+    - On anti-aliased mountain ridges & tree tips: blends smoothly into the exact cloud/sky behind them -> ZERO bright halo!
+    - On 36 km Mt Fuji (`Mist = 0.979`): ~41% seamless atmospheric scattering matching the exact golden horizon sky!
     """
     scene.use_nodes = True
     nt = scene.node_tree
@@ -195,28 +197,24 @@ def _setup_aerial_haze_compositor(scene: bpy.types.Scene):
     rl.layer = scene.view_layers[0].name
     comp = nt.nodes.new("CompositorNodeComposite")
 
-    # Clamp mist factor so sky (mist=1.0) is NOT overwritten, only terrain/trees (0 < mist < 0.995)
     math_mul = nt.nodes.new("CompositorNodeMath")
     math_mul.operation = "MULTIPLY"
-    math_mul.inputs[1].default_value = 0.30
+    math_mul.inputs[1].default_value = 0.42
 
-    # Sky mask: mist < 0.995 -> terrain, mist >= 0.995 -> sky (leave HDRI sky untouched!)
-    lt = nt.nodes.new("CompositorNodeMath")
-    lt.operation = "LESS_THAN"
-    lt.inputs[1].default_value = 0.995
-
-    mask_mul = nt.nodes.new("CompositorNodeMath")
-    mask_mul.operation = "MULTIPLY"
-
-    # Warm-golden sunlit autumn valley atmospheric scattering (prevents teal cast!)
     mix_haze = nt.nodes.new("CompositorNodeMixRGB")
     mix_haze.blend_type = "MIX"
-    mix_haze.inputs[2].default_value = (0.48, 0.45, 0.43, 1.0)
+
+    # Subtle physical 35 mm cinema lens Fog Glow on bright sunlit speculars (nose highlight, headlights, horizon!)
+    glare = nt.nodes.new("CompositorNodeGlare")
+    glare.glare_type = "FOG_GLOW"
+    glare.quality = "HIGH"
+    glare.threshold = 2.2
+    glare.mix = -0.86
+    glare.size = 7
 
     nt.links.new(rl.outputs["Mist"], math_mul.inputs[0])
-    nt.links.new(rl.outputs["Mist"], lt.inputs[0])
-    nt.links.new(math_mul.outputs["Value"], mask_mul.inputs[0])
-    nt.links.new(lt.outputs["Value"], mask_mul.inputs[1])
-    nt.links.new(mask_mul.outputs["Value"], mix_haze.inputs["Fac"])
+    nt.links.new(math_mul.outputs["Value"], mix_haze.inputs["Fac"])
     nt.links.new(rl.outputs["Image"], mix_haze.inputs[1])
-    nt.links.new(mix_haze.outputs["Image"], comp.inputs["Image"])
+    nt.links.new(rl.outputs["Env"], mix_haze.inputs[2])
+    nt.links.new(mix_haze.outputs["Image"], glare.inputs["Image"])
+    nt.links.new(glare.outputs["Image"], comp.inputs["Image"])

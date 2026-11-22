@@ -235,11 +235,11 @@ def make_guideway_materials(tex_dir: str) -> dict:
     t = generate_guideway_textures(tex_dir)
     mats = {}
 
-    # 1) Real photogrammetry CC0 Poly Haven weathered concrete + precast panel seams & rainwater streaking!
+    # 1) Real photogrammetry CC0 Poly Haven weathered Japanese concrete (cool-neutral architectural grey + seams/streaks!)
     is_new_conc = "Mat_Viaduct_Concrete" not in bpy.data.materials
     mats["concrete"] = make_box_pbr_material(
         "Mat_Viaduct_Concrete", "concrete", tile_scale=0.18,
-        tint_rgb=(0.91, 0.89, 0.85), tint_fac=0.38, normal_strength=1.15,
+        tint_rgb=(0.76, 0.77, 0.79), tint_fac=0.52, normal_strength=1.15,
         rough_mult=1.08, ao_darkening=0.58, ao_dist=2.8, macro_var=0.26
     )
     if is_new_conc:
@@ -269,12 +269,12 @@ def make_guideway_materials(tex_dir: str) -> dict:
         nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
         mats["coils"] = m
 
-    # 3) Trough floor concrete (real photogrammetry concrete + expansion seams)
+    # 3) Trough floor concrete (darker weathered concrete grey contrasting sharply against bright white sidewall coils!)
     is_new_fl = "Mat_Trough_Floor" not in bpy.data.materials
     mats["floor"] = make_box_pbr_material(
         "Mat_Trough_Floor", "concrete", tile_scale=0.25,
-        tint_rgb=(0.68, 0.67, 0.64), tint_fac=0.58, normal_strength=0.95,
-        rough_mult=1.12, ao_darkening=0.50, ao_dist=1.6, macro_var=0.22
+        tint_rgb=(0.54, 0.56, 0.58), tint_fac=0.65, normal_strength=0.95,
+        rough_mult=1.12, ao_darkening=0.55, ao_dist=1.6, macro_var=0.22
     )
     if is_new_fl:
         _add_concrete_seams_and_streaks(mats["floor"])
@@ -397,11 +397,16 @@ def build_guideway_and_viaduct(
     ]
     _swept_profile(bm, uv, girder_prof, s_vals, loc, u_scale=0.05, v_scale=0.18, mat_idx=0, closed=True)
 
-    # Outer acoustic parapet walls (left and right edges, extending cleanly into girder deck)
+    # Low outer deck concrete curbs (0.42 m) + sleek open horizontal dark-steel safety rails (exposes the U-trough!)
     ph = specs.VIADUCT_PARAPET_HEIGHT
-    for py0, py1 in [(yR, yR + 0.42), (yL - 0.42, yL)]:
+    for py0, py1 in [(yR, yR + 0.36), (yL - 0.36, yL)]:
         p_prof = [(py0, -0.62), (py1, -0.62), (py1, ph), (py0, ph)]
         _swept_profile(bm, uv, p_prof, s_vals, loc, u_scale=0.05, v_scale=0.25, mat_idx=0, closed=True)
+        py_mid = 0.5 * (py0 + py1)
+        for rz in (ph + 0.38, ph + 0.72):
+            r_prof = [(py_mid - 0.035, rz - 0.03), (py_mid + 0.035, rz - 0.03),
+                      (py_mid + 0.035, rz + 0.03), (py_mid - 0.035, rz + 0.03)]
+            _swept_profile(bm, uv, r_prof, s_vals, loc, u_scale=0.1, v_scale=0.5, mat_idx=3, closed=True)
 
     # U-Trough Concrete Sidewalls & Floor for Track 1 (y=0.0) AND Track 2 (y=+5.80 m)
     hw_tr = specs.TROUGH_INNER_WIDTH * 0.5  # 1.70 m
@@ -448,6 +453,7 @@ def build_guideway_and_viaduct(
     mesh_gw.materials.append(mats["concrete"])
     mesh_gw.materials.append(mats["coils"])
     mesh_gw.materials.append(mats["floor"])
+    mesh_gw.materials.append(mats["steel"])
     obj_gw = bpy.data.objects.new(f"GuidewayDeck_{loc.loc_id}", mesh_gw)
     obj_gw.parent = root
     collection.objects.link(obj_gw)

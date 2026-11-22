@@ -89,11 +89,11 @@ COIL_PANEL_HEIGHT = 1.12     # m
 COIL_PANEL_Z_BOTTOM = 0.28   # m
 
 VIADUCT_DECK_WIDTH = 12.60   # m total outer width of double-track viaduct
-VIADUCT_PARAPET_HEIGHT = 1.85 # m outer acoustic/safety parapet above trough floor
+VIADUCT_PARAPET_HEIGHT = 0.42 # m low outer deck edge curb (open steel handrail above -> exposes sculpted 1.68 m U-trough!)
 VIADUCT_GIRDER_DEPTH = 2.60  # m prestressed concrete box girder below trough floor
-VIADUCT_PIER_SPACING = 34.0  # m standard span between arched double-column piers
-LIGHTNING_MAST_SPACING = 34.0 # m slender vertical masts on outer parapet (no catenary!)
-LIGHTNING_MAST_HEIGHT = 5.20 # m above parapet top
+VIADUCT_PIER_SPACING = 38.0  # m authentic Yamanashi long-span prestressed box-girder viaduct pier spacing
+LIGHTNING_MAST_SPACING = 38.0 # m spacing for low-profile pier inspection platforms
+LIGHTNING_MAST_HEIGHT = 5.20 # m legacy constant (unused; open viaduct has no tall parapet masts)
 
 MIN_CURVE_RADIUS = 8000.0    # m (R = 8 km Chuo Shinkansen standard)
 MAX_CANT_DEG = 10.0          # deg (balanced at 420 km/h on R=8000 m)
@@ -112,10 +112,10 @@ NOISE_HOOD_WIDTH = 12.8      # m
 # ==============================================================================
 # 4. SEASON, LIGHTING & COLOR CALIBRATION (LATE AUTUMN GOLDEN HOUR)
 # ==============================================================================
-SUN_ELEVATION_DEG = 15.5     # Late afternoon golden hour (crisp raking light)
-SUN_AZIMUTH_DEG = 238.0      # WSW sun (illuminates Mt Fuji west/south-west snow slope + warm train reflections)
+SUN_ELEVATION_DEG = 11.5     # True low golden hour (long sculptural raking shadows!)
+SUN_AZIMUTH_DEG = 302.0      # WNW raking cross-light (~75 deg off camera axis -> rich shadow/highlight modeling!)
 SUN_ANGULAR_DIAM_DEG = 0.53  # True solar angular diameter
-SUN_TEMP_K = 4350.0          # Warm golden-hour direct sunlight
+SUN_TEMP_K = 3800.0          # Rich warm golden-hour direct sunlight
 
 # ==============================================================================
 # 5. REAL JAPAN LOCATIONS (COPERNICUS GLO-30 DEM COORDINATES)
@@ -246,42 +246,42 @@ SHOTS: List[ShotSpec] = [
     ShotSpec(
         shot_id="S01", name="Tunnel Portal Emergence", loc_id="loc1_portal",
         frame_start=1, frame_end=192, speed_kmh=500.0, is_record_run=False,
-        focal_mm=85.0, fstop=4.0, exposure_ev=1.05, rig_type="tripod", cam_max_speed_ms=0.0,
+        focal_mm=85.0, fstop=4.0, exposure_ev=1.00, rig_type="tripod", cam_max_speed_ms=0.0,
         train_x0_m=-210.0,  # Nose bursts out of x=0 buffer hood at ~1.5 s (frame 36)
-        notes="85 mm tripod on hillside framing slotted buffer hood; opened up +1.05 EV for shaded mountainside portal."
+        notes="85 mm tripod on hillside framing slotted buffer hood; opened up +1.00 EV for shaded mountainside portal."
     ),
     ShotSpec(
         shot_id="S02", name="Low Guideway Levitation Pass-By", loc_id="loc1_portal",
         frame_start=193, frame_end=360, speed_kmh=500.0, is_record_run=False,
-        focal_mm=35.0, fstop=5.6, exposure_ev=0.35, rig_type="trackside", cam_max_speed_ms=0.0,
-        train_x0_m=-260.0,  # Nose crosses camera at x=+185 m around t=3.2 s
-        notes="Low U-trough angle showcasing figure-8 sidewall coils, 10 cm levitation gap, retracted wheels, intense 180-deg blur."
+        focal_mm=35.0, fstop=5.6, exposure_ev=0.25, rig_type="trackside", cam_max_speed_ms=0.0,
+        train_x0_m=-120.0,  # Fast jib push-in & lens snap (35->52mm) into 2.66s 0.08x ultra-slow-mo as nose glides 28m->0m past lens!
+        notes="SHOWSTOPPER 1: Trackside jib push-in + 0.08x (300fps->24fps) ultra-slow-mo with adaptive 72-deg shutter showcasing 10cm levitation gap & coils."
     ),
     ShotSpec(
         shot_id="S03", name="Kofu Basin & Mt Fuji Aerial", loc_id="loc2_kofu_fuji",
         frame_start=361, frame_end=576, speed_kmh=500.0, is_record_run=False,
-        focal_mm=70.0, fstop=5.6, exposure_ev=-0.05, rig_type="helicopter", cam_max_speed_ms=52.0,
+        focal_mm=70.0, fstop=5.6, exposure_ev=-0.20, rig_type="helicopter", cam_max_speed_ms=52.0,
         train_x0_m=-420.0,  # Sweeps across full Kofu basin viaduct framed beneath snow-capped Mt Fuji
         notes="Hero establishing aerial: 70 mm helicopter view framing curved R=8000m viaduct with towering snow-capped Mt Fuji behind."
     ),
     ShotSpec(
         shot_id="S04", name="Parallel Farm Road Overtake", loc_id="loc2_kofu_fuji",
         frame_start=577, frame_end=744, speed_kmh=500.0, is_record_run=False,
-        focal_mm=28.0, fstop=4.0, exposure_ev=0.20, rig_type="car", cam_max_speed_ms=22.2,
+        focal_mm=28.0, fstop=4.0, exposure_ev=0.15, rig_type="car", cam_max_speed_ms=22.2,
         train_x0_m=-290.0,  # Car at 80 km/h (22.2 m/s) effortlessly overtaken by train at 500 km/h overhead
         notes="Camera car on rural Kofu road alongside viaduct piers; train overtakes at +116.7 m/s relative speed, leaves whip."
     ),
     ShotSpec(
         shot_id="S05", name="Southern Alps Telephoto Climb", loc_id="loc3_minami_alps",
         frame_start=745, frame_end=912, speed_kmh=500.0, is_record_run=False,
-        focal_mm=72.0, fstop=4.0, exposure_ev=0.15, rig_type="tripod", cam_max_speed_ms=0.0,
+        focal_mm=72.0, fstop=4.0, exposure_ev=0.00, rig_type="tripod", cam_max_speed_ms=0.0,
         train_x0_m=-440.0,  # Long-lens approach climbing 2.5% grade against snow-capped Minami Alps
         notes="72 mm telephoto compression against 3,193 m alpine ridges and aerial haze; crisp golden rim light on nose."
     ),
     ShotSpec(
         shot_id="S06", name="Tenryu Gorge High Viaduct Drone", loc_id="loc4_tenryu_gorge",
         frame_start=913, frame_end=1104, speed_kmh=500.0, is_record_run=False,
-        focal_mm=24.0, fstop=4.0, exposure_ev=0.40, rig_type="drone", cam_max_speed_ms=24.0,
+        focal_mm=24.0, fstop=4.0, exposure_ev=0.35, rig_type="drone", cam_max_speed_ms=24.0,
         train_x0_m=-420.0,  # Drone (24 m/s max) over emerald river tries to pace train and is left behind
         notes="52 m high concrete viaduct over emerald Tenryu River & crimson maple cliffs; shadow-lifted DP exposure."
     ),
@@ -289,29 +289,29 @@ SHOTS: List[ShotSpec] = [
         shot_id="S07", name="Kiso Hamlet, Paddies & Torii", loc_id="loc5_kiso_hamlet",
         frame_start=1105, frame_end=1296, speed_kmh=500.0, is_record_run=False,
         focal_mm=50.0, fstop=4.0, exposure_ev=0.20, rig_type="tripod", cam_max_speed_ms=0.0,
-        train_x0_m=-440.0,  # Train flashes out of acoustic noise-reduction hood behind shrine & terraced rice paddies
-        notes="Traditional rural Japan foreground (paddies, kawara roofs, vermilion torii) vs 500 km/h maglev emerging from noise hood."
+        train_x0_m=-292.0,  # Fast zoom push-in & whip-pan (44->62mm) into 2.80s 0.10x ultra-slow-mo dead-center over vermilion Torii & shrine!
+        notes="SHOWSTOPPER 2: Par-focal zoom push-in + whip-pan into 0.10x (240fps->24fps) ultra-slow-mo over vermilion Torii & swirling crimson maple leaves."
     ),
     ShotSpec(
         shot_id="S08", name="603 km/h Record Run Forward POV", loc_id="loc6_record_straight",
         frame_start=1297, frame_end=1464, speed_kmh=603.0, is_record_run=True,
-        focal_mm=24.0, fstop=5.6, exposure_ev=0.00, rig_type="onboard_nose", cam_max_speed_ms=167.5,
+        focal_mm=24.0, fstop=5.6, exposure_ev=-0.10, rig_type="onboard_nose", cam_max_speed_ms=167.5,
         train_x0_m=-600.0,  # Travels 1,172.5 m in 7.0 s at 167.5 m/s!
         notes="RECORD RUN (603 km/h): Onboard camera above L0-950 nose visor; guideway sidewalls blur into pure speed lines."
     ),
     ShotSpec(
         shot_id="S09", name="603 km/h Helicopter Chase", loc_id="loc6_record_straight",
         frame_start=1465, frame_end=1632, speed_kmh=603.0, is_record_run=True,
-        focal_mm=85.0, fstop=4.0, exposure_ev=0.10, rig_type="helicopter", cam_max_speed_ms=68.0,
+        focal_mm=85.0, fstop=4.0, exposure_ev=0.00, rig_type="helicopter", cam_max_speed_ms=68.0,
         train_x0_m=-450.0,  # Heli at 68 m/s (245 km/h) is outrun by +99.5 m/s as full train pulls ahead
         notes="RECORD RUN (603 km/h): Dynamic 3/4 aerial chase; warm interior cabin lights & cobalt nose stripes gleaming."
     ),
     ShotSpec(
         shot_id="S10", name="Sunset Tunnel Entry Climax", loc_id="loc1_portal",
         frame_start=1633, frame_end=1800, speed_kmh=500.0, is_record_run=False,
-        focal_mm=100.0, fstop=4.0, exposure_ev=0.25, rig_type="tripod", cam_max_speed_ms=0.0,
-        train_x0_m=580.0,   # Travels -X (or +X toward far portal at x=+1100 m) diving into mountain buffer hood
-        notes="Closing shot: red tail-lights streak down golden-hour viaduct and vanish into mountain buffer hood; leaves settle."
+        focal_mm=78.0, fstop=4.0, exposure_ev=0.80, rig_type="tripod", cam_max_speed_ms=0.0,
+        train_x0_m=580.0,   # Travels +X toward far portal at x=+1050 m diving into mountain buffer hood
+        notes="Closing shot: off-axis 78 mm view revealing wide 38 m pier spans & sculpted U-trough diving into slotted mountain portal."
     ),
 ]
 
