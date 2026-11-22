@@ -1,0 +1,96 @@
+{
+  "shots": {
+    "S01": {
+      "frames": 192,
+      "measured_sec_per_frame": [
+        316.5,
+        265.4
+      ],
+      "avg_sec_per_frame": 290.95,
+      "shot_runner_hours": 15.52
+    },
+    "S02": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        208.68,
+        212.41
+      ],
+      "avg_sec_per_frame": 210.54,
+      "shot_runner_hours": 9.83
+    },
+    "S03": {
+      "frames": 216,
+      "measured_sec_per_frame": [
+        215.26,
+        212.19
+      ],
+      "avg_sec_per_frame": 213.73,
+      "shot_runner_hours": 12.82
+    },
+    "S04": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        162.98,
+        165.91
+      ],
+      "avg_sec_per_frame": 164.45,
+      "shot_runner_hours": 7.67
+    },
+    "S05": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        175.12,
+        209.0
+      ],
+      "avg_sec_per_frame": 192.06,
+      "shot_runner_hours": 8.96
+    },
+    "S06": {
+      "frames": 192,
+      "measured_sec_per_frame": [
+        321.85,
+        251.75
+      ],
+      "avg_sec_per_frame": 286.8,
+      "shot_runner_hours": 15.3
+    },
+    "S07": {
+      "frames": 192,
+      "measured_sec_per_frame": [
+        258.78,
+        263.1
+      ],
+      "avg_sec_per_frame": 260.94,
+      "shot_runner_hours": 13.92
+    },
+    "S08": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        183.94,
+        164.46
+      ],
+      "avg_sec_per_frame": 174.2,
+      "shot_runner_hours": 8.13
+    },
+    "S09": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        272.33,
+        228.79
+      ],
+      "avg_sec_per_frame": 250.56,
+      "shot_runner_hours": 11.69
+    },
+    "S10": {
+      "frames": 168,
+      "measured_sec_per_frame": [
+        341.53,
+        329.43
+      ],
+      "avg_sec_per_frame": 335.48,
+      "shot_runner_hours": 15.66
+    }
+  },
+  "total_runner_hours": 119.49,
+  "est_wall_hours_20_jobs": 5.97
+}

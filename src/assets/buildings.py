@@ -201,6 +201,7 @@ def build_building_library() -> dict:
     mat_shrine_paper = _mat("JP_Shrine_ShideWhite", (0.88, 0.86, 0.80), rough=0.65)
     mat_shrine_gold = _mat("JP_Shrine_BronzeGold", (0.68, 0.52, 0.22), rough=0.35, metallic=0.85)
     mat_shrine_rope = _mat("JP_Shrine_Shimenawa", (0.58, 0.46, 0.24), rough=0.88)
+    mat_shrine_shoji = _mat("JP_Shrine_ShojiPaper", (0.28, 0.22, 0.15), rough=0.88, emission=(1.0, 0.58, 0.22), em_s=0.05)
 
     bm = bmesh.new()
     # Stepped stone plinth & foundation
@@ -224,7 +225,7 @@ def build_building_library() -> dict:
     for sy in (-1.88, 1.88):
         _box(bm, (-2.85, sy, 1.10), (0.14, 0.14, 0.95), mat_idx=3)
         _box(bm, (-2.42, sy, 1.48), (0.98, 0.12, 0.10), mat_idx=3)
-    # Recessed slatted wooden shrine doors (koushi-do) + warm interior paper glow + saisen-bako offering box
+    # Recessed slatted wooden shrine doors (koushi-do) + warm shaded aged-washi paper + saisen-bako offering box
     _box(bm, (-2.04, 0.0, 1.65), (0.10, 1.72, 1.88), mat_idx=3)
     _box(bm, (-2.07, 0.0, 1.68), (0.06, 1.48, 1.68), mat_idx=7)
     for ky in (-0.52, -0.18, 0.18, 0.52):
@@ -263,7 +264,7 @@ def build_building_library() -> dict:
     m = bpy.data.meshes.new("JP_Shrine_Hall")
     bm.to_mesh(m)
     bm.free()
-    for _m in [mat_shrine_wood, mat_shrine_roof, mat_stone, mat_shrine_dark, mat_shrine_paper, mat_shrine_gold, mat_shrine_rope, mat_win]:
+    for _m in [mat_shrine_wood, mat_shrine_roof, mat_stone, mat_shrine_dark, mat_shrine_paper, mat_shrine_gold, mat_shrine_rope, mat_shrine_shoji]:
         m.materials.append(_m)
     lib["shrine_hall"] = m
 

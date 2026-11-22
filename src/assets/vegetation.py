@@ -65,41 +65,55 @@ def _generate_foliage_textures() -> dict:
                     d.line([nx, ny, nx + math.cos(na) * nl, ny + math.sin(na) * nl], fill=col, width=rng.randint(2, 4))
         img.save(p)
 
-    # B) Japanese Maple (Momiji) serrated star-leaf spray (crimson, orange, golden-amber)
+    # B) Japanese Maple (Momiji) fine real-world-scale serrated star-leaf spray (crimson, orange, golden-amber)
     for tag, palette, seed in [
-        ("maple_red", [(148, 26, 16), (176, 38, 18), (118, 18, 14), (195, 58, 20)], 21),
-        ("maple_orange", [(185, 62, 16), (208, 88, 20), (160, 42, 14), (218, 118, 26)], 22),
-        ("maple_gold", [(196, 128, 24), (214, 152, 32), (172, 98, 18), (222, 174, 42)], 23),
+        ("maple_red", [(142, 24, 15), (168, 36, 17), (108, 16, 12), (186, 52, 18), (92, 18, 12)], 21),
+        ("maple_orange", [(178, 58, 15), (200, 82, 19), (150, 38, 13), (212, 110, 24), (124, 34, 12)], 22),
+        ("maple_gold", [(190, 122, 22), (208, 146, 30), (164, 92, 16), (218, 168, 38), (138, 78, 16)], 23),
         ("bamboo", [(64, 108, 36), (78, 124, 44), (52, 92, 30)], 24),
     ]:
         p = os.path.join(TEX_DIR, f"foliage_{tag}.png")
         paths[tag] = p
         rng = random.Random(seed)
-        S = 512
+        is_maple = "maple" in tag
+        S = 1024 if is_maple else 512
         img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
         cx, cy = S // 2, S // 2
-        n_leaves = 620 if "maple" in tag else 340
-        for _ in range(n_leaves):
-            rad = abs(rng.gauss(0, 88))
-            if rad > 218:
-                continue
-            ang = rng.uniform(0, 2 * math.pi)
-            lx = cx + math.cos(ang) * rad
-            ly = cy + math.sin(ang) * rad
-            col = (*rng.choice(palette), 255)
-            rot = rng.uniform(0, 2 * math.pi)
-            if "maple" in tag:
-                # Dense 5-lobed palmate Japanese momiji leaf canopy (rich layered autumn cluster, crisp outer edges!)
-                sz = rng.uniform(19, 34)
+        if is_maple:
+            # Fine woody twigs beneath delicate dense momiji micro-leaves
+            for _ in range(18):
+                ta = rng.uniform(0, 2 * math.pi)
+                tr = rng.uniform(140, 410)
+                d.line([cx, cy, cx + math.cos(ta) * tr, cy + math.sin(ta) * tr], fill=(54, 38, 28, 255), width=4)
+            n_leaves = 2800
+            for _ in range(n_leaves):
+                rad = abs(rng.gauss(0, 185))
+                if rad > 455:
+                    continue
+                ang = rng.uniform(0, 2 * math.pi)
+                lx = cx + math.cos(ang) * rad
+                ly = cy + math.sin(ang) * rad
+                col = (*rng.choice(palette), 255)
+                rot = rng.uniform(0, 2 * math.pi)
+                # Fine 5-lobed palmate Japanese momiji leaf (~3x smaller real-world leaf scale!)
+                sz = rng.uniform(11.0, 22.0)
                 pts = []
                 for k in range(10):
                     ka = rot + (k * math.pi / 5.0)
-                    kr = sz if (k % 2 == 0) else sz * 0.44
+                    kr = sz if (k % 2 == 0) else sz * 0.42
                     pts.append((lx + math.cos(ka) * kr, ly + math.sin(ka) * kr))
                 d.polygon(pts, fill=col)
-            else:
-                # Slender pointed bamboo lance leaf
+        else:
+            for _ in range(340):
+                rad = abs(rng.gauss(0, 88))
+                if rad > 218:
+                    continue
+                ang = rng.uniform(0, 2 * math.pi)
+                lx = cx + math.cos(ang) * rad
+                ly = cy + math.sin(ang) * rad
+                col = (*rng.choice(palette), 255)
+                rot = rng.uniform(0, 2 * math.pi)
                 sz = rng.uniform(24, 42)
                 w = sz * 0.20
                 c_r, s_r = math.cos(rot), math.sin(rot)
@@ -433,11 +447,14 @@ def build_vegetation_library() -> dict:
         _add_trunk(bm, Vector((0, 0, -0.5)), trunk_top, 0.28 * h_scale, 0.15 * h_scale, segs=7, mat_idx=0)
         for b in range(n_br):
             ang = 2.0 * math.pi * b / n_br + rng.uniform(-0.40, 0.40)
-            rad = rng.uniform(2.4, 4.6) * h_scale
-            tip = Vector((trunk_top.x + math.cos(ang) * rad, trunk_top.y + math.sin(ang) * rad, rng.uniform(5.2, 8.8) * h_scale))
+            rad = rng.uniform(2.2, 4.3) * h_scale
+            tip = Vector((trunk_top.x + math.cos(ang) * rad, trunk_top.y + math.sin(ang) * rad, rng.uniform(5.0, 8.5) * h_scale))
             _add_trunk(bm, trunk_top * 0.85, tip, 0.12 * h_scale, 0.04, segs=5, mat_idx=0)
-            _add_foliage_cluster_cards(bm, uv, tip, rng.uniform(2.5, 3.4) * h_scale, rng.uniform(1.8, 2.5) * h_scale, rng, n_cards=2, mat_idx=1, droop_rad=0.22)
-        _add_foliage_cluster_cards(bm, uv, Vector((trunk_top.x * 1.1, trunk_top.y, 8.5 * h_scale)), 3.6 * h_scale, 2.6 * h_scale, rng, n_cards=3, mat_idx=1, droop_rad=0.15)
+            # Smaller, denser foliage cluster cards matching real-world Japanese momiji scale!
+            _add_foliage_cluster_cards(bm, uv, tip, rng.uniform(1.65, 2.25) * h_scale, rng.uniform(1.25, 1.75) * h_scale, rng, n_cards=2, mat_idx=1, droop_rad=0.22)
+            sub_tip = tip.lerp(trunk_top, 0.36) + Vector((0, 0, rng.uniform(0.6, 1.4) * h_scale))
+            _add_foliage_cluster_cards(bm, uv, sub_tip, rng.uniform(1.45, 2.0) * h_scale, rng.uniform(1.15, 1.55) * h_scale, rng, n_cards=1, mat_idx=1, droop_rad=0.18)
+        _add_foliage_cluster_cards(bm, uv, Vector((trunk_top.x * 1.1, trunk_top.y, 8.2 * h_scale)), 2.4 * h_scale, 1.8 * h_scale, rng, n_cards=3, mat_idx=1, droop_rad=0.15)
         m = bpy.data.meshes.new(f"Tree_{tag}")
         bm.to_mesh(m)
         bm.free()

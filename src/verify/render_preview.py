@@ -46,12 +46,17 @@ def render_motion_preview(blend_path: str, physics_csv: str, audio_wav: str, out
     os.makedirs(prev_dir, exist_ok=True)
     t0 = time.time()
     all_frames = list(range(1, specs.TOTAL_FRAMES + 1, stride))
+    prev_sc = None
     for idx, f in enumerate(all_frames):
         hud_p = os.path.join(prev_dir, f"hud_{idx:04d}.png")
         if os.path.exists(hud_p) and os.path.getsize(hud_p) > 2048:
             continue
         shot = specs.get_shot_for_frame(f)
         sc = bpy.data.scenes[f"Scene_{shot.loc_id}"]
+        if prev_sc is not None and prev_sc != sc:
+            prev_sc.render.use_persistent_data = False
+        sc.render.use_persistent_data = True
+        prev_sc = sc
         bpy.context.window.scene = sc
         sc.camera = bpy.data.objects[f"Cam_{shot.shot_id}"]
         sc.view_settings.exposure = shot.exposure_ev
