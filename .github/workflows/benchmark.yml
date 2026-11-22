@@ -50,9 +50,12 @@ jobs:
             --samples ${{ inputs.samples }} \
             --timing-log build/bench_timing.jsonl
       - name: Summarize cloud render time & runner-hours
+        if: always()
         run: |
           python - <<'EOF'
-          import json, collections
+          import json, collections, os
+          if not os.path.exists("build/bench_timing.jsonl"):
+              raise SystemExit(0)
           by_shot = collections.defaultdict(list)
           with open("build/bench_timing.jsonl") as f:
               for line in f:
@@ -79,6 +82,7 @@ jobs:
           print(json.dumps(summary, indent=2))
           EOF
       - name: Upload benchmark report & frames
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results

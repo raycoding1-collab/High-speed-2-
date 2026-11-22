@@ -186,15 +186,84 @@ def build_building_library() -> dict:
         m.materials.append(_m)
     lib["torii"] = m
 
-    # 3. Traditional Cedar Shinto Shrine Hall
+    # 3. Traditional Cedar Shinto Shrine Hall (rich cedar wood grain, timber frame, porch, shimenawa & 3D kawara roof ribs!)
+    mat_shrine_wood = make_box_pbr_material(
+        "JP_Shrine_Cedar_PBR", "cedar_wood", tile_scale=1.15,
+        tint_rgb=(0.68, 0.50, 0.36), tint_fac=0.32, normal_strength=1.25,
+        rough_mult=0.95, ao_darkening=0.58, ao_dist=0.9, macro_var=0.14
+    )
+    mat_shrine_roof = make_box_pbr_material(
+        "JP_Shrine_Kawara_PBR", "kawara_roof", tile_scale=1.15,
+        tint_rgb=(0.30, 0.33, 0.38), tint_fac=0.55, normal_strength=1.35,
+        rough_mult=0.68, ao_darkening=0.52, ao_dist=0.7, metallic=0.10, macro_var=0.12
+    )
+    mat_shrine_dark = _mat("JP_Shrine_DarkTimber", (0.14, 0.085, 0.055), rough=0.72)
+    mat_shrine_paper = _mat("JP_Shrine_ShideWhite", (0.88, 0.86, 0.80), rough=0.65)
+    mat_shrine_gold = _mat("JP_Shrine_BronzeGold", (0.68, 0.52, 0.22), rough=0.35, metallic=0.85)
+    mat_shrine_rope = _mat("JP_Shrine_Shimenawa", (0.58, 0.46, 0.24), rough=0.88)
+
     bm = bmesh.new()
-    _box(bm, (0.0, 0.0, -0.5), (5.8, 4.8, 2.2), mat_idx=2)
-    _box(bm, (0.0, 0.0, 1.75), (4.6, 3.8, 2.4), mat_idx=0)
-    _gable_roof(bm, 4.6, 3.8, 2.95, 1.95, overhang=1.0, mat_roof=1, mat_ridge=1, mat_timber=0)
+    # Stepped stone plinth & foundation
+    _box(bm, (0.0, 0.0, -0.55), (6.0, 5.0, 2.2), mat_idx=2)
+    _box(bm, (-3.15, 0.0, 0.22), (0.95, 2.2, 0.65), mat_idx=2)
+    # Main cedar plank hall body
+    _box(bm, (0.2, 0.0, 1.80), (4.4, 3.8, 2.5), mat_idx=0)
+    # Vertical cedar board-and-batten timber ribs & heavy corner pillars
+    for sx in (-2.0, -0.6, 0.8, 2.4):
+        for sy in (-1.92, 1.92):
+            _box(bm, (sx, sy, 1.80), (0.18, 0.16, 2.52), mat_idx=3)
+    for sy in (-1.92, -0.95, 0.95, 1.92):
+        _box(bm, (-2.02, sy, 1.80), (0.18, 0.18, 2.54), mat_idx=3)
+    # Horizontal lintel beams (nuki) & top eave plate
+    for hz in (0.68, 2.68, 3.02):
+        _box(bm, (0.2, 0.0, hz), (4.65, 4.08, 0.16), mat_idx=3)
+    # Wooden front porch (engawa) facing -X toward the Torii + steps + railing
+    _box(bm, (-2.45, 0.0, 0.62), (1.10, 4.10, 0.16), mat_idx=0)
+    for step_i in range(3):
+        _box(bm, (-3.05 - step_i * 0.24, 0.0, 0.44 - step_i * 0.16), (0.26, 1.85, 0.14), mat_idx=0)
+    for sy in (-1.88, 1.88):
+        _box(bm, (-2.85, sy, 1.10), (0.14, 0.14, 0.95), mat_idx=3)
+        _box(bm, (-2.42, sy, 1.48), (0.98, 0.12, 0.10), mat_idx=3)
+    # Recessed slatted wooden shrine doors (koushi-do) + warm interior paper glow + saisen-bako offering box
+    _box(bm, (-2.04, 0.0, 1.65), (0.10, 1.72, 1.88), mat_idx=3)
+    _box(bm, (-2.07, 0.0, 1.68), (0.06, 1.48, 1.68), mat_idx=7)
+    for ky in (-0.52, -0.18, 0.18, 0.52):
+        _box(bm, (-2.10, ky, 1.68), (0.05, 0.06, 1.72), mat_idx=3)
+    for kz in (1.15, 1.55, 1.95, 2.30):
+        _box(bm, (-2.10, 0.0, kz), (0.05, 1.54, 0.06), mat_idx=3)
+    # Saisen-bako (slatted wooden offering box) on porch
+    _box(bm, (-2.52, 0.0, 1.02), (0.52, 1.15, 0.68), mat_idx=3)
+    # Sacred braided straw shimenawa rope + 4 hanging white paper shide zigzags under front eave!
+    _box(bm, (-2.38, 0.0, 2.74), (0.22, 2.25, 0.22), mat_idx=6)
+    for sy in (-0.75, -0.25, 0.25, 0.75):
+        _box(bm, (-2.44, sy, 2.48), (0.04, 0.14, 0.34), mat_idx=4, rot_eul=(0.0, 0.0, 0.15))
+
+    # Gable kawara-tile roof with deep eaves + 3D corrugated tile ribs + exposed wooden rafters (taruki)!
+    z_eave, ridge_h = 3.05, 2.05
+    _gable_roof(bm, 4.6, 4.0, z_eave, ridge_h, overhang=1.15, mat_roof=1, mat_ridge=5, mat_timber=3)
+    hy_r = 4.0 * 0.5 + 1.15
+    hx_r = 4.6 * 0.5 + 1.15
+    slope_l = math.hypot(hy_r, ridge_h)
+    ang_r = math.atan2(ridge_h, hy_r)
+    for side in (-1.0, 1.0):
+        cy = side * hy_r * 0.5
+        cz = z_eave + ridge_h * 0.5
+        # 17 crisp 3D kawara tile roll-ribs down each slope!
+        for ti in range(17):
+            tx = -hx_r + 0.18 + ti * (2.0 * hx_r - 0.36) / 16.0
+            _box(bm, (tx, cy, cz + 0.14), (0.09, slope_l + 0.16, 0.09), mat_idx=1, rot_eul=(-side * ang_r, 0.0, 0.0))
+        # Exposed wooden rafters (taruki) projecting cleanly under the eaves
+        for ri in range(11):
+            rx = -hx_r + 0.25 + ri * (2.0 * hx_r - 0.50) / 10.0
+            _box(bm, (rx, side * (hy_r - 0.35), z_eave - 0.02), (0.09, 0.85, 0.11), mat_idx=3, rot_eul=(-side * ang_r, 0.0, 0.0))
+    # Decorative bronze-gold ridge katsuogi billets & end finials
+    for kx in (-1.6, -0.8, 0.0, 0.8, 1.6):
+        _box(bm, (kx, 0.0, z_eave + ridge_h + 0.36), (0.20, 0.64, 0.18), mat_idx=5)
+
     m = bpy.data.meshes.new("JP_Shrine_Hall")
     bm.to_mesh(m)
     bm.free()
-    for _m in [mat_cedar, mat_kawara, mat_stone]:
+    for _m in [mat_shrine_wood, mat_shrine_roof, mat_stone, mat_shrine_dark, mat_shrine_paper, mat_shrine_gold, mat_shrine_rope, mat_win]:
         m.materials.append(_m)
     lib["shrine_hall"] = m
 

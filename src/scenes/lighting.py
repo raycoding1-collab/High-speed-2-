@@ -163,8 +163,8 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
     # atmospheric haze box or compositor Mist pass — clean, fast, noise-free, zero blocked sunlight!)
     if add_aerial_haze:
         scene.view_layers[0].use_pass_mist = True
-        world.mist_settings.start = 280.0
-        world.mist_settings.depth = 22000.0
+        world.mist_settings.start = 110.0
+        world.mist_settings.depth = 5200.0
         world.mist_settings.falloff = "INVERSE_QUADRATIC"
         _setup_aerial_haze_compositor(scene)
 
@@ -182,8 +182,9 @@ def setup_golden_hour_world(scene: bpy.types.Scene, hdri_path: str,
 def _setup_aerial_haze_compositor(scene: bpy.types.Scene):
     """
     Scene-linear physically motivated atmospheric aerial perspective using the Mist pass:
-    blends distant mountains toward warm-cool autumn horizon scattering color with distance,
-    leaving foreground shadows completely untouched (zero shadow color cast!).
+    creates subtle golden-hour depth separation between foreground (<110m untouched), mid-ground
+    viaduct & hills (6-14% warm sunlit veil), and distant peaks (up to 30% atmospheric glow)
+    while preserving rich filmic contrast on long telephoto shots.
     """
     scene.use_nodes = True
     nt = scene.node_tree
@@ -194,10 +195,10 @@ def _setup_aerial_haze_compositor(scene: bpy.types.Scene):
     rl.layer = scene.view_layers[0].name
     comp = nt.nodes.new("CompositorNodeComposite")
 
-    # Clamp mist factor so sky (mist=1.0) is NOT overwritten, only distant terrain (0 < mist < 0.995)
+    # Clamp mist factor so sky (mist=1.0) is NOT overwritten, only terrain/trees (0 < mist < 0.995)
     math_mul = nt.nodes.new("CompositorNodeMath")
     math_mul.operation = "MULTIPLY"
-    math_mul.inputs[1].default_value = 0.46
+    math_mul.inputs[1].default_value = 0.30
 
     # Sky mask: mist < 0.995 -> terrain, mist >= 0.995 -> sky (leave HDRI sky untouched!)
     lt = nt.nodes.new("CompositorNodeMath")
@@ -207,10 +208,10 @@ def _setup_aerial_haze_compositor(scene: bpy.types.Scene):
     mask_mul = nt.nodes.new("CompositorNodeMath")
     mask_mul.operation = "MULTIPLY"
 
-    # Atmospheric autumn golden-blue scattering color (linear RGB)
+    # Warm-golden sunlit autumn valley atmospheric scattering (prevents teal cast!)
     mix_haze = nt.nodes.new("CompositorNodeMixRGB")
     mix_haze.blend_type = "MIX"
-    mix_haze.inputs[2].default_value = (0.36, 0.41, 0.50, 1.0)
+    mix_haze.inputs[2].default_value = (0.48, 0.45, 0.43, 1.0)
 
     nt.links.new(rl.outputs["Mist"], math_mul.inputs[0])
     nt.links.new(rl.outputs["Mist"], lt.inputs[0])

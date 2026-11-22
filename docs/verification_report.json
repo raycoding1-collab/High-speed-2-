@@ -1,10 +1,10 @@
 {
   "depsgraph_audit": {
     "loc1_portal": {
-      "total_mesh_instances": 5728,
+      "total_mesh_instances": 9009,
       "by_collection": {
-        "Env_loc1_portal": 118,
-        "Veg_loc1_portal": 5080,
+        "Env_loc1_portal": 176,
+        "Veg_loc1_portal": 8303,
         "Train_loc1_portal": 110,
         "Wake_S01": 140,
         "Wake_S02": 140,
@@ -37,9 +37,9 @@
       "pass": true
     },
     "loc4_tenryu_gorge": {
-      "total_mesh_instances": 5168,
+      "total_mesh_instances": 5167,
       "by_collection": {
-        "Env_loc4_tenryu_gorge": 258,
+        "Env_loc4_tenryu_gorge": 257,
         "Veg_loc4_tenryu_gorge": 4800,
         "Train_loc4_tenryu_gorge": 110
       },
@@ -47,10 +47,10 @@
       "pass": true
     },
     "loc5_kiso_hamlet": {
-      "total_mesh_instances": 4850,
+      "total_mesh_instances": 4334,
       "by_collection": {
-        "Env_loc5_kiso_hamlet": 99,
-        "Veg_loc5_kiso_hamlet": 4482,
+        "Env_loc5_kiso_hamlet": 140,
+        "Veg_loc5_kiso_hamlet": 3925,
         "Bldg_loc5_kiso_hamlet": 19,
         "Train_loc5_kiso_hamlet": 110,
         "Wake_S07": 140
@@ -59,10 +59,10 @@
       "pass": true
     },
     "loc6_record_straight": {
-      "total_mesh_instances": 6021,
+      "total_mesh_instances": 10021,
       "by_collection": {
         "Env_loc6_record_straight": 111,
-        "Veg_loc6_record_straight": 5800,
+        "Veg_loc6_record_straight": 9800,
         "Train_loc6_record_straight": 110
       },
       "nan_transform_count": 0,
@@ -203,21 +203,21 @@
       "samples": 20
     },
     "S07": {
-      "mean_luma": 0.354,
-      "p05_luma": 0.044,
+      "mean_luma": 0.394,
+      "p05_luma": 0.111,
       "p95_luma": 0.821,
-      "crushed_black_pct": 2.66,
+      "crushed_black_pct": 0.2,
       "clipped_white_pct": 0.0,
       "shadow_mean_rgb": [
-        0.14,
-        0.111,
-        0.057
+        0.194,
+        0.162,
+        0.107
       ],
-      "shadow_teal_excess": -0.056,
+      "shadow_teal_excess": -0.06,
       "color_pass": true,
       "exposure_pass": true,
       "hero_frame": 1200,
-      "render_sec_local_2core": 175.41,
+      "render_sec_local_2core": 186.19,
       "resolution": [
         1280,
         720
@@ -225,21 +225,21 @@
       "samples": 16
     },
     "S08": {
-      "mean_luma": 0.47,
-      "p05_luma": 0.035,
-      "p95_luma": 0.796,
-      "crushed_black_pct": 3.81,
+      "mean_luma": 0.386,
+      "p05_luma": 0.022,
+      "p95_luma": 0.781,
+      "crushed_black_pct": 5.89,
       "clipped_white_pct": 0.0,
       "shadow_mean_rgb": [
-        0.121,
-        0.116,
-        0.088
+        0.072,
+        0.068,
+        0.05
       ],
-      "shadow_teal_excess": -0.019,
+      "shadow_teal_excess": -0.013,
       "color_pass": true,
       "exposure_pass": true,
       "hero_frame": 1372,
-      "render_sec_local_2core": 123.02,
+      "render_sec_local_2core": 157.38,
       "resolution": [
         1280,
         720
@@ -247,48 +247,48 @@
       "samples": 16
     },
     "S09": {
-      "mean_luma": 0.261,
-      "p05_luma": 0.015,
-      "p95_luma": 0.843,
-      "crushed_black_pct": 9.19,
+      "mean_luma": 0.328,
+      "p05_luma": 0.153,
+      "p95_luma": 0.827,
+      "crushed_black_pct": 1.52,
       "clipped_white_pct": 0.0,
       "shadow_mean_rgb": [
-        0.047,
-        0.036,
-        0.01
+        0.194,
+        0.181,
+        0.16
       ],
       "shadow_teal_excess": -0.024,
       "color_pass": true,
       "exposure_pass": true,
       "hero_frame": 1545,
-      "render_sec_local_2core": 232.92,
-      "resolution": [
-        1280,
-        720
-      ],
-      "samples": 20
-    },
-    "S10": {
-      "mean_luma": 0.314,
-      "p05_luma": 0.139,
-      "p95_luma": 0.705,
-      "crushed_black_pct": 0.69,
-      "clipped_white_pct": 0.0,
-      "shadow_mean_rgb": [
-        0.158,
-        0.157,
-        0.156
-      ],
-      "shadow_teal_excess": -0.001,
-      "color_pass": true,
-      "exposure_pass": true,
-      "hero_frame": 1713,
-      "render_sec_local_2core": 212.69,
+      "render_sec_local_2core": 221.33,
       "resolution": [
         1280,
         720
       ],
       "samples": 16
+    },
+    "S10": {
+      "mean_luma": 0.352,
+      "p05_luma": 0.206,
+      "p95_luma": 0.613,
+      "crushed_black_pct": 0.0,
+      "clipped_white_pct": 0.0,
+      "shadow_mean_rgb": [
+        0.241,
+        0.219,
+        0.197
+      ],
+      "shadow_teal_excess": -0.033,
+      "color_pass": true,
+      "exposure_pass": true,
+      "hero_frame": 1713,
+      "render_sec_local_2core": 197.03,
+      "resolution": [
+        1280,
+        720
+      ],
+      "samples": 12
     }
   },
   "all_depsgraph_pass": true,

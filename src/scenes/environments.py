@@ -59,14 +59,34 @@ def make_japan_terrain_material(name: str, snow_line_z_world: float = 2100.0,
     nt.links.new(geom.outputs["Position"], sep_pos.inputs["Vector"])
     nt.links.new(geom.outputs["Normal"], sep_nrm.inputs["Vector"])
 
-    def _box_tex(role: str, scale_m: float):
+    # 3D domain warp on world coordinates before box-projection -> 100% eliminates repeating texture tiling on steep slopes!
+    n_warp = nt.nodes.new("ShaderNodeTexNoise")
+    n_warp.inputs["Scale"].default_value = 0.018
+    n_warp.inputs["Detail"].default_value = 4.0
+    n_warp.inputs["Roughness"].default_value = 0.55
+    nt.links.new(geom.outputs["Position"], n_warp.inputs["Vector"])
+    v_sub = nt.nodes.new("ShaderNodeVectorMath")
+    v_sub.operation = "SUBTRACT"
+    v_sub.inputs[1].default_value = (0.5, 0.5, 0.5)
+    nt.links.new(n_warp.outputs["Color"], v_sub.inputs[0])
+    v_mul = nt.nodes.new("ShaderNodeVectorMath")
+    v_mul.operation = "SCALE"
+    v_mul.inputs["Scale"].default_value = 26.0
+    nt.links.new(v_sub.outputs["Vector"], v_mul.inputs[0])
+    v_add = nt.nodes.new("ShaderNodeVectorMath")
+    v_add.operation = "ADD"
+    nt.links.new(geom.outputs["Position"], v_add.inputs[0])
+    nt.links.new(v_mul.outputs["Vector"], v_add.inputs[1])
+
+    def _box_tex(role: str, scale_m: float, rot_z: float = 0.42):
         maps = ph_tex.get(role, {})
         mp = nt.nodes.new("ShaderNodeMapping")
+        mp.inputs["Rotation"].default_value = (0.12, -0.09, rot_z)
         mp.inputs["Scale"].default_value = (1.0 / scale_m, 1.0 / scale_m, 1.0 / scale_m)
-        nt.links.new(geom.outputs["Position"], mp.inputs["Vector"])
+        nt.links.new(v_add.outputs["Vector"], mp.inputs["Vector"])
         t = nt.nodes.new("ShaderNodeTexImage")
         t.projection = "BOX"
-        t.projection_blend = 0.30
+        t.projection_blend = 0.38
         if "albedo" in maps and os.path.exists(maps["albedo"]):
             t.image = _load_image(maps["albedo"], "sRGB")
         nt.links.new(mp.outputs["Vector"], t.inputs["Vector"])
@@ -351,16 +371,16 @@ def _sculpt_guideway_corridor(XX: np.ndarray, YY: np.ndarray, Z_raw: np.ndarray,
         Z = Z + hill_mask * relief
 
     if portal_in_s is not None:
-        in_mtn = 1.0 / (1.0 + np.exp((s_v - (portal_in_s - 42.0)) / 18.0))
+        in_mtn = 1.0 / (1.0 + np.exp((s_v - (portal_in_s - 26.0)) / 15.0))
         open_air = 1.0 - in_mtn
         Z_open = np.minimum(Z, desired_under_viaduct + 3.5) * corridor_w + Z * (1.0 - corridor_w)
-        Z = Z_open * open_air + np.maximum(Z, gw_z + 24.0 + 0.14 * d_lat) * in_mtn
+        Z = Z_open * open_air + np.maximum(Z, gw_z + 24.0 + 0.16 * d_lat) * in_mtn
     else:
         Z = np.minimum(Z, desired_under_viaduct + 2.0) * corridor_w + Z * (1.0 - corridor_w)
 
     if portal_out_s is not None:
-        in_mtn_out = 1.0 / (1.0 + np.exp(-(s_v - (portal_out_s + 42.0)) / 18.0))
-        Z = Z * (1.0 - in_mtn_out) + np.maximum(Z, gw_z + 26.0 + 0.15 * d_lat) * in_mtn_out
+        in_mtn_out = 1.0 / (1.0 + np.exp(-(s_v - (portal_out_s + 26.0)) / 15.0))
+        Z = Z * (1.0 - in_mtn_out) + np.maximum(Z, gw_z + 26.0 + 0.18 * d_lat) * in_mtn_out
 
     if carve_gorge:
         # Smooth organic river gorge canyon winding cleanly across full terrain (no V-notch edge artifact!)
@@ -566,43 +586,59 @@ def build_location_environment(
             add_portal_at_s=0.0, add_exit_portal_at_s=1050.0
         )
 
-        # Dense continuous Yamanashi autumn cedar + crimson maple forest carpet (4,500+ trees!)
+        # Dense continuous Yamanashi autumn cedar + crimson maple forest carpet (eliminates bare terrain patches!)
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_valley", XX, YY, Z_rel, veg_lib,
             x_range=(-220.0, 1280.0), y_range=(-360.0, 440.0),
-            target_count=3200, seed=101, viaduct_clear_y=15.0, max_slope=2.2, maple_ratio=0.30
+            target_count=4600, seed=101, viaduct_clear_y=14.0, max_slope=2.8, maple_ratio=0.30
         )
-        # Tightly carpet around & over the Entry Portal (s ~ 0) AND Exit Portal (s ~ 1050) headwalls!
+        # Tightly carpet around & over the Entry Portal (s ~ 0) AND Exit Portal (s ~ 1050) headwalls & steep slopes!
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_inportal", XX, YY, Z_rel, veg_lib,
-            x_range=(-160.0, 120.0), y_range=(-140.0, 160.0),
-            target_count=650, seed=102, viaduct_clear_y=12.5, max_slope=2.6, maple_ratio=0.36
+            x_range=(-160.0, 140.0), y_range=(-150.0, 170.0),
+            target_count=950, seed=102, viaduct_clear_y=11.5, max_slope=3.0, maple_ratio=0.36
         )
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_outportal", XX, YY, Z_rel, veg_lib,
-            x_range=(880.0, 1280.0), y_range=(-160.0, 190.0),
-            target_count=850, seed=103, viaduct_clear_y=12.5, max_slope=2.6, maple_ratio=0.34
+            x_range=(780.0, 1280.0), y_range=(-220.0, 240.0),
+            target_count=1950, seed=103, viaduct_clear_y=11.5, max_slope=3.2, maple_ratio=0.34
         )
-        # Trees directly over the mountain brow above BOTH tunnel bores!
+        # Trees & dense low brush directly over the mountain brows and right against portal buttresses!
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_brows", XX, YY, Z_rel, veg_lib,
-            x_range=(1065.0, 1260.0), y_range=(-110.0, 110.0),
-            target_count=380, seed=104, viaduct_clear_y=0.0, min_z=14.0, max_slope=2.6, maple_ratio=0.34
+            x_range=(1055.0, 1260.0), y_range=(-140.0, 140.0),
+            target_count=620, seed=104, viaduct_clear_y=0.0, min_z=9.5, max_slope=3.2, maple_ratio=0.36
         )
-        # Scatter compact 3D photogrammetry granite boulders embedded cleanly on hillside flanks (clear of cameras!)
+        # Dense low autumn brush hugging BOTH portal shoulders & bases (blends concrete seamlessly into earth!)
+        rng_br = random.Random(112)
+        brush_pts = []
+        for px_c, dir_s in [(-8.0, -1.0), (1056.0, 1.0)]:
+            for _ in range(95):
+                bx = px_c + dir_s * rng_br.uniform(-6.0, 56.0)
+                by = specs.TRACK_SPACING * 0.5 + rng_br.choice([-1.0, 1.0]) * rng_br.uniform(8.8, 28.0)
+                if -10.0 <= bx <= 120.0 and by < -8.0:
+                    continue
+                bz = _interp_z(XX, YY, Z_rel, bx, by) - 0.6
+                brush_pts.append((bx, by, bz))
+        brush_meshes = [veg_lib["maple_red"], veg_lib.get("maple_orange_1", veg_lib["maple_orange"]),
+                        veg_lib["maple_gold"], veg_lib["hinoki_0"], veg_lib["sugi_1"]]
+        stats["trees"] += _scatter_instances(
+            col_veg, f"PortalBrush_{loc_id}", brush_meshes, [0.25, 0.25, 0.16, 0.18, 0.16],
+            brush_pts, (0.38, 0.78), rng_br, non_uniform=True
+        )
+        # Clustered 3D photogrammetry granite boulders anchoring BOTH tunnel portal bases & steep rocky flanks!
         if "boulder_0" in veg_lib:
             rng_b = random.Random(109)
             b_pts = []
-            for px_c in (-18.0, 1068.0):
-                for _ in range(28):
-                    bx = px_c + rng_b.uniform(-45.0, 45.0)
-                    by = rng_b.choice([-1.0, 1.0]) * rng_b.uniform(13.0, 36.0) + specs.TRACK_SPACING * 0.5
-                    # Keep S01 camera foreground (-Y side near x=60..110) unobstructed!
+            for px_c, dir_s in [(-12.0, -1.0), (1058.0, 1.0)]:
+                for _ in range(55):
+                    bx = px_c + dir_s * rng_b.uniform(-12.0, 62.0)
+                    by = rng_b.choice([-1.0, 1.0]) * rng_b.uniform(8.5, 34.0) + specs.TRACK_SPACING * 0.5
                     if -10.0 <= bx <= 120.0 and by < -8.0:
                         continue
-                    bz = _interp_z(XX, YY, Z_rel, bx, by) - 0.5
+                    bz = _interp_z(XX, YY, Z_rel, bx, by) - 0.6
                     b_pts.append((bx, by, bz))
-            _scatter_instances(col_env, f"Boulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], b_pts, (0.70, 1.80), rng_b, non_uniform=True, full_3d_rot=True)
+            _scatter_instances(col_env, f"Boulder_{loc_id}", [veg_lib["boulder_0"]], [1.0], b_pts, (0.75, 2.35), rng_b, non_uniform=True, full_3d_rot=True)
 
     # -------------------------------------------------------------------------
     # LOCATION 2: Kofu Basin & Snow-Capped Mt Fuji (S03 Hero Aerial + S04 Parallel Car)
@@ -767,8 +803,6 @@ def build_location_environment(
             target_count=2200, seed=401, viaduct_clear_y=14.0,
             min_z=-loc.viaduct_elev_above_ground + 0.8, max_slope=2.6, maple_ratio=0.36
         )
-        _add_valley_mist_layer(col_env, f"RiverMist_{loc_id}", center=(30.0, 550.0, -loc.viaduct_elev_above_ground + 11.0),
-                               size=(280.0, 1600.0, 18.0), density=0.0022)
 
     # -------------------------------------------------------------------------
     # LOCATION 5: Kiso / Nagano Rural Hamlet, Terraced Rice Paddies & Shrine (S07)
@@ -860,9 +894,14 @@ def build_location_environment(
         XX, YY, Z_dem, e0 = sample_dem_patch(loc.lat, loc.lon, 4400.0, 2600.0, nx=180, ny=150, yaw_deg=10.0,
                                              center_offset_xy=(250.0, 0.0))
         Z_rel = Z_dem - e0 - loc.viaduct_elev_above_ground
-        # Gentle natural valley flanks (no bare vertical highway-cut wall!) rising cleanly to forested ridges!
+        # Organically undulating mountain flanks (no ruler-straight ramp!) rising cleanly to densely forested ridges!
         d_lat_v = np.abs(YY - specs.TRACK_SPACING * 0.5)
-        max_flank = -loc.viaduct_elev_above_ground + np.maximum(0.0, d_lat_v - 16.0) * 0.28
+        ridge_wave = (
+            10.5 * np.sin(XX / 175.0 + 0.6) * np.cos(YY / 140.0)
+            + 6.2 * np.cos(XX / 82.0 - YY / 115.0)
+            + 3.5 * np.sin(XX / 41.0 + YY / 53.0)
+        )
+        max_flank = -loc.viaduct_elev_above_ground + np.maximum(0.0, d_lat_v - 16.0) * 0.25 + np.clip((d_lat_v - 32.0) / 45.0, 0.0, 1.0) * ridge_wave
         open_mask = XX < 880.0
         Z_rel[open_mask] = np.minimum(Z_rel[open_mask], max_flank[open_mask])
         Z_rel = _sculpt_guideway_corridor(XX, YY, Z_rel, loc, portal_out_s=920.0, corridor_sigma=45.0)
@@ -875,18 +914,24 @@ def build_location_environment(
         # Roaring unbroken wall of dense 3D Japanese cedars & fiery autumn maples right beside the 603 km/h straightaway!
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_trackside", XX, YY, Z_rel, veg_lib,
-            x_range=(-550.0, 960.0), y_range=(-46.0, 52.0),
-            target_count=1600, seed=603, viaduct_clear_y=11.0, max_slope=2.8, maple_ratio=0.32
+            x_range=(-550.0, 960.0), y_range=(-52.0, 58.0),
+            target_count=1800, seed=603, viaduct_clear_y=11.0, max_slope=3.0, maple_ratio=0.32
         )
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_wall", XX, YY, Z_rel, veg_lib,
-            x_range=(-600.0, 1020.0), y_range=(-105.0, 115.0),
-            target_count=2600, seed=601, viaduct_clear_y=36.0, max_slope=2.8, maple_ratio=0.34
+            x_range=(-600.0, 1020.0), y_range=(-145.0, 155.0),
+            target_count=3400, seed=601, viaduct_clear_y=36.0, max_slope=3.0, maple_ratio=0.32
+        )
+        # Thick continuous upper-embankment & ridgeline canopy completely hiding the edge of the world in S08 POV!
+        stats["trees"] += scatter_forest_in_region(
+            col_veg, f"Tree_{loc_id}_ridge", XX, YY, Z_rel, veg_lib,
+            x_range=(-650.0, 1120.0), y_range=(-295.0, 305.0),
+            target_count=2800, seed=604, viaduct_clear_y=110.0, max_slope=3.0, maple_ratio=0.25
         )
         stats["trees"] += scatter_forest_in_region(
             col_veg, f"Tree_{loc_id}_wide", XX, YY, Z_rel, veg_lib,
-            x_range=(-850.0, 1150.0), y_range=(-360.0, 420.0),
-            target_count=1600, seed=602, viaduct_clear_y=95.0, max_slope=2.6, maple_ratio=0.26
+            x_range=(-850.0, 1180.0), y_range=(-480.0, 520.0),
+            target_count=1800, seed=602, viaduct_clear_y=240.0, max_slope=2.8, maple_ratio=0.22
         )
 
     else:
@@ -1032,22 +1077,37 @@ def _add_terraced_paddy_details(col_env, col_veg, veg_lib, paddy_base: float, st
     mw.materials.append(mat_w)
     col_env.objects.link(bpy.data.objects.new("Kiso_Paddy_Water", mw))
 
-    # Dense harvested golden rice stubble rows across all visible foreground paddy plots!
+    # Organic broken-up harvested rice stubble clumps & mossy wall-base stones (ZERO uniform grid row!)
     rng = random.Random(555)
     stubble_pts = []
     for (y0, y1, zt) in tiers:
-        for rx in np.arange(-30.0, 120.0, 3.2):
-            for ry in np.arange(y0 + 1.8, y1 - 1.5, 3.2):
-                # Keep shrine approach path clear
-                if 74.0 <= rx <= 98.0 and -52.0 <= ry <= -26.0:
+        for rx in np.arange(-28.0, 118.0, 3.6):
+            for ry in np.arange(y0 + 2.1, y1 - 1.6, 3.6):
+                # Organic patchy clustering (leaves natural bare damp-earth & shallow-water breaks along wall!)
+                clump_n = math.sin(rx * 0.21 + ry * 0.17) + 0.65 * math.cos(rx * 0.43 - ry * 0.31)
+                if clump_n < -0.35 or rng.random() < 0.30:
                     continue
-                stubble_pts.append((float(rx), float(ry), zt + 0.04))
+                jx = float(rx) + rng.uniform(-1.55, 1.55)
+                jy = float(ry) + rng.uniform(-1.45, 1.45)
+                # Keep shrine approach path clear
+                if 54.0 <= jx <= 72.0 and -52.0 <= jy <= -28.0:
+                    continue
+                stubble_pts.append((jx, jy, zt + rng.uniform(-0.04, 0.08)))
     rice_meshes = [veg_lib["rice_patch"], veg_lib.get("rice_patch_1", veg_lib["rice_patch"]),
                    veg_lib.get("rice_patch_2", veg_lib["rice_patch"])]
     stats["crops"] += _scatter_instances(
-        col_veg, "RiceStubble", rice_meshes, [0.34, 0.33, 0.33], stubble_pts, (0.90, 1.16), rng,
+        col_veg, "RiceStubble", rice_meshes, [0.34, 0.33, 0.33], stubble_pts, (0.58, 1.32), rng,
         align_yaw_rad=None, non_uniform=True
     )
+    # Scatter mossy fieldstones nestled irregularly along the base of the mossy terrace walls!
+    if "boulder_0" in veg_lib:
+        stone_pts = []
+        for (y0, _, zt) in tiers:
+            for sx in np.arange(-12.0, 108.0, 4.8):
+                if rng.random() < 0.45:
+                    continue
+                stone_pts.append((float(sx) + rng.uniform(-1.8, 1.8), y0 + rng.uniform(-0.95, 0.85), zt + 0.05))
+        _scatter_instances(col_env, "WallStones_Kiso", [veg_lib["boulder_0"]], [1.0], stone_pts, (0.14, 0.34), rng, non_uniform=True, full_3d_rot=True)
 
 
 def _add_valley_mist_layer(col, name, center, size, density=0.0022):
