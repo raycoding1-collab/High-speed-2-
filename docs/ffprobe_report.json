@@ -1,0 +1,78 @@
+{
+  "film_1080p": {
+    "file": "film_1080p.mp4",
+    "size_bytes": 85618575,
+    "size_mb": 85.62,
+    "duration_s": 75.0,
+    "bit_rate_kbps": 9132.6,
+    "width": 1920,
+    "height": 1080,
+    "pix_fmt": "yuv420p",
+    "color_space": "bt709",
+    "color_primaries": "bt709",
+    "color_transfer": "bt709",
+    "nb_frames": 1800,
+    "nb_read_frames": 1800,
+    "has_audio": true,
+    "audio_codec": "aac",
+    "audio_sr": 48000,
+    "audio_channels": 2
+  },
+  "film_instagram": {
+    "file": "film_instagram.mp4",
+    "size_bytes": 22002300,
+    "size_mb": 22.0,
+    "duration_s": 75.0,
+    "bit_rate_kbps": 2346.9,
+    "width": 1920,
+    "height": 1080,
+    "pix_fmt": "yuv420p",
+    "color_space": "bt709",
+    "color_primaries": "bt709",
+    "color_transfer": "bt709",
+    "nb_frames": 1800,
+    "nb_read_frames": 1800,
+    "has_audio": true,
+    "audio_codec": "aac",
+    "audio_sr": 48000,
+    "audio_channels": 2
+  },
+  "film_youtube_4k": {
+    "file": "film_youtube_4k.mp4",
+    "size_bytes": 478940104,
+    "size_mb": 478.94,
+    "duration_s": 75.0,
+    "bit_rate_kbps": 51086.9,
+    "width": 3840,
+    "height": 2160,
+    "pix_fmt": "yuv420p",
+    "color_space": "bt709",
+    "color_primaries": "bt709",
+    "color_transfer": "bt709",
+    "nb_frames": 1800,
+    "nb_read_frames": 1800,
+    "has_audio": true,
+    "audio_codec": "aac",
+    "audio_sr": 48000,
+    "audio_channels": 2
+  },
+  "thumbnails": [
+    "thumb_01_levitation_showstopper.jpg",
+    "thumb_02_kofu_mt_fuji.jpg",
+    "thumb_03_kiso_torii_shrine.jpg"
+  ],
+  "cloud_render_runs": {
+    "batch_1_frames_1_900": {
+      "run_id": 45084189424,
+      "jobs": 21,
+      "failed_jobs": 0,
+      "elapsed": "6h 12m 37s"
+    },
+    "batch_2_frames_901_1800": {
+      "run_id": 45120453166,
+      "jobs": 21,
+      "failed_jobs": 0,
+      "elapsed": "7h 07m 55s"
+    }
+  }
+}

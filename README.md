@@ -13,8 +13,22 @@ Built 100% programmatically in **Blender 4.5 (`bpy`, Cycles CPU)** with **real C
 - `src/verify/` — OpenCV `solvePnP` reference-photo camera solver (`solve_pnp_train.py`), automated Section 6 verification gates (`verify_gates.py`), and HUD motion preview (`render_preview.py`).
 - `src/pipeline/` — Interleaved chunked Cycles worker with PNG `IEND` resume (`render_worker.py`) and safe multi-target FFmpeg encoder/verifier (`encode_deliverables.py`).
 - `.github/workflows/` — Cloud benchmark (`benchmark.yml`), 20-job periodic-chunk final render (`render_film.yml`), and multi-batch / missing-frame patcher (`patch_missing.yml`).
-- `docs/` — Research & citations (`research_l0_scmaglev.md`), route & shot sheet (`route_and_shots.md`), per-frame physics log (`physics_log.csv`), EBU R128 loudness report (`loudness_report.json`), verification checklist (`verification_checklist.md`), and YouTube metadata & CGI disclosure (`youtube_metadata.md`).
-- `review/` — Compact JPG review stills for direct browser viewing.
+- `deliveries/` — Final verified film masters committed directly to git (`film_1080p.mp4`, `film_instagram.mp4` <25 MB) & 3 hero `1280×720` thumbnails.
+- `docs/` — Research & citations (`research_l0_scmaglev.md`), route & shot sheet (`route_and_shots.md`), per-frame physics log (`physics_log.csv`), EBU R128 loudness report (`loudness_report.json`), full 3-master verification report (`ffprobe_report.json`), verification checklist (`verification_checklist.md`), and YouTube metadata & CGI disclosure (`youtube_metadata.md`).
+- `review/` — Compact JPG review stills and 75 s HUD motion preview (`motion_preview_hud.mp4`).
+
+## Final Deliverables (`ffprobe`-Verified, 1,800 / 1,800 Frames)
+| Deliverable | Resolution | Bitrate | File Size | Color / Audio | Location |
+|---|---|---|---|---|---|
+| **1080p Master** | `1920×1080` @ `24 fps` (`75.0 s`) | `9.13 Mbps` | `85.62 MB` | `yuv420p`, BT.709, AAC `48 kHz` stereo (`−23.00 LUFS`) | [`deliveries/film_1080p.mp4`](deliveries/film_1080p.mp4) |
+| **Instagram-DM Copy (<25 MB)** | `1920×1080` @ `24 fps` (`75.0 s`) | `2.35 Mbps` | `22.00 MB` | `yuv420p`, BT.709, AAC `48 kHz` stereo (`−23.00 LUFS`) | [`deliveries/film_instagram.mp4`](deliveries/film_instagram.mp4) |
+| **YouTube 4K Master** | `3840×2160` @ `24 fps` (`75.0 s`) | `51.09 Mbps` | `478.94 MB` | `yuv420p`, BT.709, AAC `320 kbps` `48 kHz` stereo | GitHub Actions `final-film-deliverables` artifact (too large for git) |
+| **3 Hero Thumbnails** | `1280×720` JPG | — | `206–423 KB` | Frames `287` (`S02`), `464` (`S03`), `1204` (`S07`) | [`deliveries/`](deliveries/) |
+
+### Cloud Render Summary (`1920×1080`, `48 spp` Cycles CPU + OIDN, 0 Failed Jobs)
+- **Batch 1 (`frames 1–900`):** [GitHub Actions Run `#45084189424`](https://github.com/raycoding1-collab/High-speed-2-/actions/runs/45084189424) — `21/21` jobs succeeded (`0` failed), `6h 12m 37s`.
+- **Batch 2 (`frames 901–1800`):** [GitHub Actions Run `#45120453166`](https://github.com/raycoding1-collab/High-speed-2-/actions/runs/45120453166) — `21/21` jobs succeeded (`0` failed), `7h 07m 55s`.
+- **Verification:** `1,800 / 1,800` PNGs validated (`IEND` + PIL decode, `0` missing/corrupt), 10/10 encoded-video shot frames visually verified, audio mastered to `−23.00 LUFS` / `−4.50 dBTP` (EBU R128 pass).
 
 ## Licensing & Attribution
 - All code and procedural assets in this repository are original / self-made.
