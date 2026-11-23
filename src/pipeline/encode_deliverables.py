@@ -26,7 +26,26 @@ from PIL import Image
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
 import specs
-from pipeline.render_worker import is_valid_complete_png
+
+
+def is_valid_complete_png(path: str, expected_size=None) -> bool:
+    """Verify file exists, contains valid PNG header & IEND trailer, and decodes completely via PIL (no bpy required!)."""
+    if not os.path.exists(path) or os.path.getsize(path) < 1024:
+        return False
+    try:
+        with open(path, "rb") as f:
+            if f.read(8) != b"\x89PNG\r\n\x1a\n":
+                return False
+            f.seek(max(0, os.path.getsize(path) - 64))
+            if b"IEND" not in f.read(64):
+                return False
+        with Image.open(path) as im:
+            im.load()
+            if expected_size and im.size != tuple(expected_size):
+                return False
+        return True
+    except Exception:
+        return False
 
 
 def safe_merge_frames(src_dirs: list, merged_dir: str, expected_size=(1920, 1080)) -> dict:
