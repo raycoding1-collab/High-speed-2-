@@ -177,11 +177,11 @@ def encode_all(merged_dir: str, audio_wav: str, out_dir: str, report_path: str,
         mp4_4k,
     ])
 
-    # 4. 3 Thumbnail Candidates (1280x720) from hero moments (Mt Fuji S03, Tunnel Portal S01, Tenryu Gorge S06)
+    # 4. 3 Hero YouTube Thumbnail Candidates (1280x720) from our 3 strongest verified 48-spp frames!
     thumbs = [
-        ("thumb_01_kofu_fuji.jpg", 464),
-        ("thumb_02_portal_emergence.jpg", 54),
-        ("thumb_03_tenryu_gorge.jpg", 1005),
+        ("thumb_01_levitation_showstopper.jpg", 287),
+        ("thumb_02_kofu_mt_fuji.jpg", 464),
+        ("thumb_03_kiso_torii_shrine.jpg", 1204),
     ]
     thumb_paths = []
     for tname, fnum in thumbs:

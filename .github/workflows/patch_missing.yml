@@ -35,21 +35,20 @@ jobs:
         with:
           python-version: "3.11.11"
       - run: pip install pillow==11.1.0
-      - name: Download all artifacts from original run(s)
+      - name: Download all artifacts from original run(s) with 503 retry
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p orig_artifacts
-          for rid in ${{ inputs.original_run_id }}; do
-            mkdir -p "orig_artifacts/run_${rid}"
-            gh run download "$rid" -p "frames-*" -D "orig_artifacts/run_${rid}" || true
-          done
+          python src/pipeline/download_cloud_frames.py \
+            --run-ids ${{ inputs.original_run_id }} \
+            --out-dir merged_existing \
+            --workers 3 --width ${{ inputs.width }} --height ${{ inputs.height }} || true
       - name: Scan for missing or corrupt frames
         id: scan
         run: |
           python src/pipeline/encode_deliverables.py \
-            --src-dirs orig_artifacts \
-            --merged-dir merged_existing \
+            --src-dirs merged_existing \
+            --merged-dir merged_checked \
             --audio dummy.wav \
             --out-dir patch_meta \
             --width ${{ inputs.width }} --height ${{ inputs.height }} \
@@ -122,18 +121,18 @@ jobs:
         with:
           python-version: "3.11.11"
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && pip install pillow==11.1.0
-      - name: Download original & patched artifacts
+      - name: Download original & patched artifacts with 503 retry
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p all_sources/orig all_sources/patch
+          mkdir -p all_sources/orig all_sources/patch all_sources/scene_audio
           FIRST_RID=$(echo "${{ inputs.original_run_id }}" | awk '{print $1}')
           gh run download "$FIRST_RID" -n film-scene-and-audio -D all_sources/scene_audio
           rm -f all_sources/scene_audio/film.blend
-          for rid in ${{ inputs.original_run_id }}; do
-            mkdir -p "all_sources/orig/run_${rid}"
-            gh run download "$rid" -p "frames-*" -D "all_sources/orig/run_${rid}" || true
-          done
+          python src/pipeline/download_cloud_frames.py \
+            --run-ids ${{ inputs.original_run_id }} \
+            --out-dir all_sources/orig \
+            --workers 3 --width ${{ inputs.width }} --height ${{ inputs.height }} || true
       - uses: actions/download-artifact@v4
         with:
           path: all_sources/patch
