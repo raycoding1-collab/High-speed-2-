@@ -1,0 +1,52 @@
+name: Publish 4K Master to GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "GitHub Actions run ID containing final-film-deliverables artifact"
+        required: true
+        default: "45192010149"
+      tag:
+        description: "Release tag"
+        required: false
+        default: "v1.0-4k"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish_release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download final-film-deliverables artifact from source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release_assets
+          gh run download "${{ inputs.source_run_id }}" -n final-film-deliverables -D release_assets
+          ls -lh release_assets/
+      - name: Create or update GitHub Release with direct MP4 downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber \
+              release_assets/film_youtube_4k.mp4 \
+              release_assets/film_1080p.mp4 \
+              release_assets/film_instagram.mp4 \
+              deliveries/thumbnail_youtube_l0_speed.jpg
+          else
+            gh release create "$TAG" \
+              --title "500 km/h Through Japan — 4K & 1080p Masters" \
+              --notes "Verified final masters of '500 km/h Through Japan' (JR Central L0 Series SCMaglev, 1,800 frames @ 24 fps, 75.0 s, BT.709, -23.00 LUFS stereo AAC)." \
+              release_assets/film_youtube_4k.mp4 \
+              release_assets/film_1080p.mp4 \
+              release_assets/film_instagram.mp4 \
+              deliveries/thumbnail_youtube_l0_speed.jpg
+          fi
+          gh release view "$TAG" --json url,assets --jq '{url, assets:[.assets[]|{name, size, url}]}'
